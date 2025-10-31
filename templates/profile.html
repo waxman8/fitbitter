@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fitbitter - Profile</title>
+</head>
+<body>
+    <h1>Welcome to your Fitbitter Profile</h1>
+    <p>You are successfully connected to your Fitbit account.</p>
+
+    <h2>Your Devices</h2>
+    {% if devices %}
+        <ul>
+            {% for device in devices %}
+                <li>
+                    <strong>{{ device.deviceVersion }}</strong> (ID: {{ device.id }})
+                    <ul>
+                        <li>Type: {{ device.type }}</li>
+                        <li>Last Sync: {{ device.lastSyncTime }}</li>
+                        <li>Battery: {{ device.battery }}</li>
+                    </ul>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>Could not retrieve your devices.</p>
+    {% endif %}
+</body>
+</html>
