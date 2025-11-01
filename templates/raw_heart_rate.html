@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fitbitter - Raw Heart Rate</title>
+</head>
+<body>
+    <h1>Last 7 Days Heart Rate</h1>
+    {% if heart_rate_data %}
+        <pre>{{ heart_rate_data | tojson(indent=4) }}</pre>
+    {% else %}
+        <p>Could not retrieve heart rate data.</p>
+    {% endif %}
+</body>
+</html>
