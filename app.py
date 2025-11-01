@@ -211,6 +211,71 @@ def heart_rate_intraday():
         return redirect(url_for("login"))
 
 
+@app.route("/detailed-sleep-data")
+def detailed_sleep_data():
+    if "oauth_token" not in session:
+        return redirect(url_for("login"))
+
+    fitbit = OAuth2Session(
+        client_id,
+        token=session["oauth_token"],
+        auto_refresh_url=token_url,
+        auto_refresh_kwargs={
+            "client_id": client_id,
+            "client_secret": client_secret,
+        },
+        token_updater=token_updater,
+    )
+
+    try:
+        # Get yesterday's date
+        yesterday = datetime.now().date() - timedelta(days=1)
+        yesterday_str = yesterday.strftime('%Y-%m-%d')
+        
+        api_url = f"https://api.fitbit.com/1.2/user/-/sleep/date/{yesterday_str}.json"
+        
+        response = fitbit.get(api_url)
+        
+        if response.status_code == 200:
+            sleep_data = response.json()
+            # Get the first sleep log
+            sleep_log = sleep_data['sleep'][0] if sleep_data.get('sleep') else None
+        else:
+            sleep_log = None
+            app.logger.error(f"Fitbit API request for sleep failed with status code {response.status_code}: {response.text}")
+
+        heart_rate_data = None
+        if sleep_log:
+            start_time_str = sleep_log['startTime']
+            end_time_str = sleep_log['endTime']
+            
+            # Parse the datetime strings
+            start_time = datetime.fromisoformat(start_time_str)
+            end_time = datetime.fromisoformat(end_time_str)
+
+            start_date_str = start_time.strftime('%Y-%m-%d')
+            end_date_str = end_time.strftime('%Y-%m-%d')
+            start_time_str_req = start_time.strftime('%H:%M')
+            end_time_str_req = end_time.strftime('%H:%M')
+
+            hr_api_url = (
+                f"https://api.fitbit.com/1/user/-/activities/heart/date/{start_date_str}/{end_date_str}/1min/"
+                f"time/{start_time_str_req}/{end_time_str_req}.json"
+            )
+            hr_response = fitbit.get(hr_api_url)
+
+            if hr_response.status_code == 200:
+                heart_rate_data = hr_response.json()
+            else:
+                app.logger.error(f"Fitbit API request for heart rate failed with status code {hr_response.status_code}: {hr_response.text}")
+
+
+        return render_template("detailed_sleep_data.html", sleep_data=sleep_log, heart_rate_data=heart_rate_data)
+    except (TokenExpiredError, MissingTokenError):
+        session.pop("oauth_token", None)
+        return redirect(url_for("login"))
+
+
 if __name__ == "__main__":
     # This allows us to use a plain HTTP callback
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
