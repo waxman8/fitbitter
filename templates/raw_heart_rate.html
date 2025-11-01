@@ -1,12 +1,37 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Fitbitter - Raw Heart Rate</title>
+    <title>Fitbitter - Resting Heart Rate</title>
+    <style>
+        table {
+            width: 50%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
 </head>
 <body>
-    <h1>Last 7 Days Heart Rate</h1>
+    <h1>Last 7 Days Resting Heart Rate</h1>
     {% if heart_rate_data %}
-        <pre>{{ heart_rate_data | tojson(indent=4) }}</pre>
+        <table>
+            <tr>
+                <th>Date</th>
+                <th>Resting Heart Rate</th>
+            </tr>
+            {% for entry in heart_rate_data %}
+            <tr>
+                <td>{{ entry.date }}</td>
+                <td>{{ entry.resting_heart_rate }}</td>
+            </tr>
+            {% endfor %}
+        </table>
     {% else %}
         <p>Could not retrieve heart rate data.</p>
     {% endif %}

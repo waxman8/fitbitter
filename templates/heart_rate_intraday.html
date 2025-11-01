@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fitbitter - Intraday Heart Rate</title>
+    <style>
+        table {
+            width: 50%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <a href="{{ url_for('profile') }}">Home</a>
+    <h1>Detailed Heart Rate</h1>
+    <form method="get" action="{{ url_for('heart_rate_intraday') }}">
+        <label for="start_datetime">Start:</label>
+        <input type="datetime-local" id="start_datetime" name="start_datetime" value="{{ start_datetime }}">
+        <label for="end_datetime">End:</label>
+        <input type="datetime-local" id="end_datetime" name="end_datetime" value="{{ end_datetime }}">
+        <input type="submit" value="Get Heart Rate Data">
+    </form>
+    {% if heart_rate_data and 'activities-heart-intraday' in heart_rate_data and 'dataset' in heart_rate_data['activities-heart-intraday'] %}
+        <table>
+            <tr>
+                <th>Time</th>
+                <th>Heart Rate (bpm)</th>
+            </tr>
+            {% for entry in heart_rate_data['activities-heart-intraday']['dataset'] %}
+            <tr>
+                <td>{{ entry.time }}</td>
+                <td>{{ entry.value }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    {% else %}
+        <p>Could not retrieve intraday heart rate data.</p>
+    {% endif %}
+</body>
+</html>

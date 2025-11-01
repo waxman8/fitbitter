@@ -135,7 +135,18 @@ def raw_heart_rate_data():
         response = fitbit.get(api_url)
         
         if response.status_code == 200:
-            heart_rate_data = response.json()
+            raw_heart_rate_data = response.json()
+            
+            # Process data to extract resting heart rate
+            resting_heart_rate_list = []
+            if raw_heart_rate_data and 'activities-heart' in raw_heart_rate_data:
+                for day_data in raw_heart_rate_data['activities-heart']:
+                    date = day_data.get('dateTime')
+                    value_data = day_data.get('value', {})
+                    resting_heart_rate = value_data.get('restingHeartRate', 'N/A')
+                    resting_heart_rate_list.append({'date': date, 'resting_heart_rate': resting_heart_rate})
+            
+            heart_rate_data = resting_heart_rate_list
         else:
             heart_rate_data = None
 
@@ -143,6 +154,62 @@ def raw_heart_rate_data():
     except (TokenExpiredError, MissingTokenError):
         session.pop("oauth_token", None)
         return redirect(url_for("login"))
+
+@app.route("/heart_rate_intraday")
+def heart_rate_intraday():
+    if "oauth_token" not in session:
+        return redirect(url_for("login"))
+
+    fitbit = OAuth2Session(
+        client_id,
+        token=session["oauth_token"],
+        auto_refresh_url=token_url,
+        auto_refresh_kwargs={
+            "client_id": client_id,
+            "client_secret": client_secret,
+        },
+        token_updater=token_updater,
+    )
+
+    try:
+        start_datetime_str = request.args.get('start_datetime')
+        end_datetime_str = request.args.get('end_datetime')
+
+        if start_datetime_str and end_datetime_str:
+            start_time = datetime.strptime(start_datetime_str, '%Y-%m-%dT%H:%M')
+            end_time = datetime.strptime(end_datetime_str, '%Y-%m-%dT%H:%M')
+        else:
+            end_time = datetime.now()
+            start_time = end_time - timedelta(hours=23)
+
+        start_date_str = start_time.strftime('%Y-%m-%d')
+        end_date_str = end_time.strftime('%Y-%m-%d')
+        start_time_str = start_time.strftime('%H:%M')
+        end_time_str = end_time.strftime('%H:%M')
+
+        api_url = (
+            f"https://api.fitbit.com/1/user/-/activities/heart/date/{start_date_str}/{end_date_str}/1min/"
+            f"time/{start_time_str}/{end_time_str}.json"
+        )
+
+        response = fitbit.get(api_url)
+
+        if response.status_code == 200:
+            intraday_data = response.json()
+        else:
+            intraday_data = None
+            app.logger.error(f"Fitbit API request failed with status code {response.status_code}: {response.text}")
+
+        return render_template(
+            "heart_rate_intraday.html",
+            heart_rate_data=intraday_data,
+            start_datetime=start_time.strftime('%Y-%m-%dT%H:%M'),
+            end_datetime=end_time.strftime('%Y-%m-%dT%H:%M')
+        )
+    except (TokenExpiredError, MissingTokenError):
+        session.pop("oauth_token", None)
+        return redirect(url_for("login"))
+
 
 if __name__ == "__main__":
     # This allows us to use a plain HTTP callback
