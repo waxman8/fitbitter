@@ -286,36 +286,55 @@ def detailed_sleep_data():
             hr_df = pd.DataFrame(heart_rate_data['activities-heart-intraday']['dataset'])
             base_date = pd.to_datetime(sleep_log['startTime']).date()
             hr_df['time'] = pd.to_datetime(base_date.strftime('%Y-%m-%d') + ' ' + hr_df['time'])
+            # Calculate a 5-minute rolling average for smoothing
+            hr_df['smoothed_value'] = hr_df['value'].rolling(window=5, center=True).mean()
 
             # Create figure with secondary y-axis
             fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-            # Define a modern color palette
-            sleep_color = 'rgba(55, 128, 191, 0.7)'
+            # Define the order, capitalization, and colors for sleep stages
+            sleep_stage_map = {
+                'wake': {'order': 4, 'color': 'rgba(255, 255, 255, 0)', 'label': 'WAKE'}, # Transparent for wake
+                'light': {'order': 3, 'color': 'BLUE', 'label': 'LIGHT'},
+                'rem': {'order': 2, 'color': 'PURPLE', 'label': 'REM'},
+                'deep': {'order': 1, 'color': 'BLACK', 'label': 'DEEP'}
+            }
             heart_rate_color = 'rgba(219, 86, 86, 0.9)'
 
+            # Map sleep levels to the defined order
+            sleep_df['order'] = sleep_df['level'].map(lambda x: sleep_stage_map.get(x, {}).get('order'))
+
             # Add sleep stages trace
-            for i, row in sleep_df.iterrows():
-                fig.add_trace(
-                    go.Scatter(
-                        x=[row['startTime'], row['endTime']],
-                        y=[row['level'], row['level']],
-                        mode='lines',
-                        line=dict(width=20, color=sleep_color),
-                        name='Sleep Stage',
-                        showlegend=(i == 0) # Show legend only for the first segment
-                    ),
-                    secondary_y=False,
-                )
+            for level, data in sleep_df.groupby('level'):
+                info = sleep_stage_map.get(level, {})
+                if not info: continue
+                
+                for i, row in data.iterrows():
+                    fig.add_trace(
+                        go.Scatter(
+                            x=[row['startTime'], row['endTime']],
+                            y=[info['order'], info['order']],
+                            mode='lines',
+                            line=dict(width=20, color=info['color']),
+                            name=info['label'],
+                            showlegend=(i == 0) # Show legend only for the first segment of each level
+                        ),
+                        secondary_y=False,
+                    )
 
             # Add heart rate trace
             fig.add_trace(
-                go.Scatter(x=hr_df['time'], y=hr_df['value'], mode='lines', name='Heart Rate', line=dict(color=heart_rate_color)),
+                go.Scatter(x=hr_df['time'], y=hr_df['smoothed_value'], mode='lines', name='Heart Rate', line=dict(color=heart_rate_color)),
                 secondary_y=True,
             )
             
             # Update y-axes
-            fig.update_yaxes(title_text="Sleep Stage", secondary_y=False)
+            fig.update_yaxes(
+                title_text="Sleep Stage",
+                secondary_y=False,
+                tickvals=[1, 2, 3],
+                ticktext=['DEEP', 'REM', 'LIGHT']
+            )
             fig.update_yaxes(title_text="Heart Rate (bpm)", secondary_y=True)
 
             graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
