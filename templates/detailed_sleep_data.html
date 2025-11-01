@@ -8,7 +8,18 @@
     <h1>Detailed Sleep Data</h1>
     <a href="/profile">Back to Profile</a>
 
+    <form method="get" action="{{ url_for('detailed_sleep_data') }}">
+        <label for="start_datetime">Start:</label>
+        <input type="datetime-local" id="start_datetime" name="start_datetime" value="{{ start_datetime }}">
+        <label for="end_datetime">End:</label>
+        <input type="datetime-local" id="end_datetime" name="end_datetime" value="{{ end_datetime }}">
+        <input type="submit" value="Get Sleep Data">
+    </form>
+
     <div id="sleepChart"></div>
+    {% if total_awake_time is defined %}
+        <h2>Total Awake Time: {{ (total_awake_time / 60)|round|int }} minutes</h2>
+    {% endif %}
 
     <script>
         const graph = {{ graphJSON | safe }};

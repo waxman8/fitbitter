@@ -20,7 +20,7 @@
 <body>
     <a href="{{ url_for('profile') }}">Home</a>
     <h1>Detailed Heart Rate</h1>
-    <form method="get" action="{{ url_for('heart_rate_intraday') }}">
+    <form method="get" action="{{ url_for('detailed_heart_rate') }}">
         <label for="start_datetime">Start:</label>
         <input type="datetime-local" id="start_datetime" name="start_datetime" value="{{ start_datetime }}">
         <label for="end_datetime">End:</label>
