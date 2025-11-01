@@ -3,6 +3,11 @@ from datetime import datetime, timedelta
 from flask import Flask, redirect, request, session, url_for, render_template
 from flask.json import jsonify
 import requests
+import plotly
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import pandas as pd
+import json
 from requests_oauthlib import OAuth2Session
 from oauthlib.oauth2 import TokenExpiredError
 from oauthlib.oauth2.rfc6749.errors import MissingTokenError
@@ -270,7 +275,52 @@ def detailed_sleep_data():
                 app.logger.error(f"Fitbit API request for heart rate failed with status code {hr_response.status_code}: {hr_response.text}")
 
 
-        return render_template("detailed_sleep_data.html", sleep_data=sleep_log, heart_rate_data=heart_rate_data)
+        graphJSON = {}
+        if sleep_log and heart_rate_data:
+            # Process sleep data
+            sleep_df = pd.DataFrame(sleep_log['levels']['data'])
+            sleep_df['startTime'] = pd.to_datetime(sleep_df['dateTime'])
+            sleep_df['endTime'] = sleep_df.apply(lambda row: row['startTime'] + timedelta(seconds=row['seconds']), axis=1)
+            
+            # Process heart rate data
+            hr_df = pd.DataFrame(heart_rate_data['activities-heart-intraday']['dataset'])
+            base_date = pd.to_datetime(sleep_log['startTime']).date()
+            hr_df['time'] = pd.to_datetime(base_date.strftime('%Y-%m-%d') + ' ' + hr_df['time'])
+
+            # Create figure with secondary y-axis
+            fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+            # Define a modern color palette
+            sleep_color = 'rgba(55, 128, 191, 0.7)'
+            heart_rate_color = 'rgba(219, 86, 86, 0.9)'
+
+            # Add sleep stages trace
+            for i, row in sleep_df.iterrows():
+                fig.add_trace(
+                    go.Scatter(
+                        x=[row['startTime'], row['endTime']],
+                        y=[row['level'], row['level']],
+                        mode='lines',
+                        line=dict(width=20, color=sleep_color),
+                        name='Sleep Stage',
+                        showlegend=(i == 0) # Show legend only for the first segment
+                    ),
+                    secondary_y=False,
+                )
+
+            # Add heart rate trace
+            fig.add_trace(
+                go.Scatter(x=hr_df['time'], y=hr_df['value'], mode='lines', name='Heart Rate', line=dict(color=heart_rate_color)),
+                secondary_y=True,
+            )
+            
+            # Update y-axes
+            fig.update_yaxes(title_text="Sleep Stage", secondary_y=False)
+            fig.update_yaxes(title_text="Heart Rate (bpm)", secondary_y=True)
+
+            graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
+        return render_template("detailed_sleep_data.html", graphJSON=graphJSON)
     except (TokenExpiredError, MissingTokenError):
         session.pop("oauth_token", None)
         return redirect(url_for("login"))

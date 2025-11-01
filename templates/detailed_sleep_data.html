@@ -2,93 +2,20 @@
 <html>
 <head>
     <title>Fitbitter - Detailed Sleep Data</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 </head>
 <body>
     <h1>Detailed Sleep Data</h1>
     <a href="/profile">Back to Profile</a>
 
-    <h2>Sleep Stages</h2>
-    <div style="width: 80%; margin: auto;">
-        <canvas id="sleepChart"></canvas>
-    </div>
+    <div id="sleepChart"></div>
 
     <script>
-        const sleepData = {{ sleep_data | tojson }};
-        const heartRateData = {{ heart_rate_data | tojson }};
-        
-        if (sleepData && sleepData.levels && sleepData.levels.data) {
-            const labels = sleepData.levels.data.map(item => new Date(item.dateTime).toLocaleTimeString());
-            const sleepLevels = sleepData.levels.data.map(item => {
-                switch(item.level) {
-                    case 'wake': return 4;
-                    case 'rem': return 3;
-                    case 'light': return 2;
-                    case 'deep': return 1;
-                    default: return 0;
-                }
-            });
-
-            const datasets = [{
-                label: 'Sleep Stage',
-                data: sleepLevels,
-                borderColor: 'rgba(75, 192, 192, 1)',
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                stepped: true,
-                yAxisID: 'ySleep',
-            }];
-
-            if (heartRateData && heartRateData['activities-heart-intraday'] && heartRateData['activities-heart-intraday'].dataset) {
-                const hrLabels = heartRateData['activities-heart-intraday'].dataset.map(item => item.time);
-                const hrValues = heartRateData['activities-heart-intraday'].dataset.map(item => item.value);
-                
-                datasets.push({
-                    label: 'Heart Rate',
-                    data: hrValues,
-                    borderColor: 'rgba(255, 99, 132, 1)',
-                    backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                    yAxisID: 'yHeart',
-                    type: 'line'
-                });
-            }
-
-
-            const ctx = document.getElementById('sleepChart').getContext('2d');
-            const sleepChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: datasets
-                },
-                options: {
-                    scales: {
-                        ySleep: {
-                            type: 'linear',
-                            position: 'left',
-                            ticks: {
-                                callback: function(value, index, values) {
-                                    switch(value) {
-                                        case 4: return 'Wake';
-                                        case 3: return 'REM';
-                                        case 2: return 'Light';
-                                        case 1: return 'Deep';
-                                        default: return '';
-                                    }
-                                }
-                            }
-                        },
-                        yHeart: {
-                            type: 'linear',
-                            position: 'right',
-                            grid: {
-                                drawOnChartArea: false,
-                            },
-                        }
-                    }
-                }
-            });
+        const graph = {{ graphJSON | safe }};
+        if (Object.keys(graph).length > 0) {
+            Plotly.newPlot('sleepChart', graph.data, graph.layout);
         } else {
-            document.write('<p>No sleep data available for the selected date.</p>');
+            document.getElementById('sleepChart').innerHTML = '<p>No sleep data available for the selected date.</p>';
         }
     </script>
 </body>
