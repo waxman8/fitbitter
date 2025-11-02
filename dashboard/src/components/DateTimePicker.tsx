@@ -21,7 +21,7 @@ export default function DateTimePicker({ label, selected, onChange }: DateTimePi
         showTimeSelect
         timeFormat="HH:mm"
         timeIntervals={15}
-        dateFormat="MMMM d, yyyy h:mm aa"
+        dateFormat="MMMM d, yyyy HH:mm"
         className="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
       />
     </div>

@@ -4,6 +4,7 @@ import {
   Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Bar, Cell
 } from 'recharts';
 import { useMemo } from 'react';
+import { calculateRollingAverage } from '@/utils/smoothing';
 
 // Define the structure of our data props
 interface SleepData {
@@ -24,6 +25,11 @@ interface SleepData {
   }[];
 }
 
+interface SmoothedHeartRate {
+  time: string;
+  value: number | null;
+}
+
 const sleepStageMapping = {
   wake: { level: 4, color: '#facc15' }, // yellow-400
   rem: { level: 3, color: '#8b5cf6' },  // violet-500
@@ -34,14 +40,21 @@ const sleepStageMapping = {
 type SleepStage = keyof typeof sleepStageMapping;
 
 export default function SleepChart({ data }: { data: SleepData }) {
+  const smoothedHeartRate = useMemo(() => {
+    if (!data || !data.heartRate) {
+      return [];
+    }
+    return calculateRollingAverage(data.heartRate, 9);
+  }, [data]);
+
   const chartData = useMemo(() => {
-    if (!data || !data.sleepStages || !data.heartRate) {
+    if (!data || !data.sleepStages || !smoothedHeartRate) {
       return [];
     }
 
-    const combinedData: { time: number; heartRate?: number; sleepStage?: number; sleepColor?: string }[] = data.heartRate.map(hr => ({
+    const combinedData: { time: number; heartRate?: number; sleepStage?: number; sleepColor?: string }[] = smoothedHeartRate.map(hr => ({
       time: new Date(hr.time).getTime(),
-      heartRate: hr.value,
+      heartRate: hr.value ?? undefined,
     }));
 
     const timeToDataMap = new Map(combinedData.map(d => [d.time, d]));
@@ -66,6 +79,17 @@ export default function SleepChart({ data }: { data: SleepData }) {
     return combinedData;
   }, [data]);
 
+  const maxHeartRate = useMemo(() => {
+    if (!smoothedHeartRate || smoothedHeartRate.length === 0) {
+      return 100; // Default max if no data
+    }
+    const validValues = smoothedHeartRate.map(hr => hr.value).filter(v => v !== null) as number[];
+    if (validValues.length === 0) {
+      return 100;
+    }
+    return Math.max(...validValues);
+  }, [smoothedHeartRate]);
+
   if (!chartData.length) {
     return <p>No data available to display chart.</p>;
   }
@@ -83,9 +107,9 @@ export default function SleepChart({ data }: { data: SleepData }) {
       const sleepStage = yAxisTickFormatter(sleepStageLevel);
 
       return (
-        <div className="bg-white p-2 border border-gray-300 rounded shadow-lg">
-          <p className="label">{`${time}`}</p>
-          {heartRate && <p className="intro">{`Heart Rate: ${heartRate} bpm`}</p>}
+        <div className="bg-gray-800 text-gray-200 p-2 border border-gray-600 rounded shadow-lg">
+          <p className="label font-semibold">{`${time}`}</p>
+          {heartRate && <p className="intro">{`Heart Rate: ${Math.round(heartRate)} bpm`}</p>}
           {sleepStage && <p className="intro">{`Sleep Stage: ${sleepStage}`}</p>}
         </div>
       );
@@ -112,6 +136,7 @@ export default function SleepChart({ data }: { data: SleepData }) {
           orientation="left"
           stroke="#ef4444"
           label={{ value: 'Heart Rate (bpm)', angle: -90, position: 'insideLeft' }}
+          domain={[40, maxHeartRate + 5]}
         />
         <YAxis
           yAxisId="right"

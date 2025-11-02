@@ -57,17 +57,21 @@ export default function Dashboard() {
       <h1 className="text-4xl font-bold mb-10">Your Sleep Data</h1>
       <a href="/" className="mb-10 text-blue-500 hover:underline">Back to Home</a>
 
-      <div className="flex items-center space-x-4 mb-10">
-        <DateTimePicker
-          label="Start Date"
-          selected={startDate}
-          onChange={(date) => date && setStartDate(date)}
-        />
-        <DateTimePicker
-          label="End Date"
-          selected={endDate}
-          onChange={(date) => date && setEndDate(date)}
-        />
+      <div className="flex items-end space-x-4 mb-10">
+        <div className="w-50">
+          <DateTimePicker
+            label="Start Date"
+            selected={startDate}
+            onChange={(date) => date && setStartDate(date)}
+          />
+        </div>
+        <div className="w-50">
+          <DateTimePicker
+            label="End Date"
+            selected={endDate}
+            onChange={(date) => date && setEndDate(date)}
+          />
+        </div>
         <button
           onClick={fetchData}
           className="px-4 py-2 text-white bg-blue-500 rounded-md hover:bg-blue-600"
