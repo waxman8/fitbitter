@@ -1,7 +1,8 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from flask import Flask, redirect, request, session, url_for, render_template
+from flask_cors import CORS
 from flask.json import jsonify
 import plotly
 import plotly.graph_objects as go
@@ -18,6 +19,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
+CORS(app, resources={r"/api/*": {"origins": "http://127.0.0.1:3000"}}, supports_credentials=True)
 
 # Fitbit OAuth 2.0 configuration
 client_id = os.getenv("FITBIT_CLIENT_ID")
@@ -33,9 +35,12 @@ def index():
 
 @app.route("/login")
 def login():
+    source = request.args.get('source')
     fitbit = OAuth2Session(client_id, redirect_uri=redirect_uri, scope=scope)
     authorization_url, state = fitbit.authorization_url(authorization_base_url)
     session["oauth_state"] = state
+    if source:
+        session["login_source"] = source
     return redirect(authorization_url)
 
 @app.route("/callback")
@@ -58,7 +63,11 @@ def callback():
         )
         
         session["oauth_token"] = token
-        return redirect(url_for("profile"))
+        # Redirect based on the source of the login
+        if session.get("login_source") == "dashboard":
+            return redirect("http://127.0.0.1:3000/dashboard")
+        else:
+            return redirect(url_for("profile"))
     
     except MissingTokenError as e:
         app.logger.error(f"MissingTokenError in Fitbit callback: {e}")
@@ -281,6 +290,76 @@ def process_sleep_data(all_sleep_logs, heart_rate_data, start_datetime, end_date
             total_awake_time = all_sleep_df[all_sleep_df['level'] == 'wake']['seconds'].sum()
     return graphJSON, total_awake_time
 
+def process_sleep_data_for_api(all_sleep_logs, heart_rate_data, start_datetime, end_datetime):
+    """Processes sleep and heart rate data and returns it in a structured JSON format for an API."""
+    processed_data = {
+        "metadata": {
+            "startTime": start_datetime.isoformat(),
+            "endTime": end_datetime.isoformat(),
+            "totalAwakeTimeMinutes": 0
+        },
+        "sleepStages": [],
+        "heartRate": []
+    }
+    total_awake_time_seconds = 0
+
+    if not all_sleep_logs:
+        return processed_data
+
+    # Process sleep stages
+    all_sleep_df = pd.DataFrame()
+    for sleep_log in all_sleep_logs:
+        log_start_time = datetime.fromisoformat(sleep_log['startTime']).replace(tzinfo=timezone.utc)
+        log_end_time = datetime.fromisoformat(sleep_log['endTime']).replace(tzinfo=timezone.utc)
+        if log_start_time < end_datetime and log_end_time > start_datetime:
+            sleep_df = pd.DataFrame(sleep_log['levels']['data'])
+            # Ensure parsed datetimes are timezone-aware (UTC)
+            sleep_df['startTime'] = pd.to_datetime(sleep_df['dateTime']).dt.tz_localize('utc')
+            sleep_df['endTime'] = sleep_df.apply(lambda row: row['startTime'] + timedelta(seconds=row['seconds']), axis=1)
+            all_sleep_df = pd.concat([all_sleep_df, sleep_df])
+
+    if not all_sleep_df.empty:
+        for index, row in all_sleep_df.iterrows():
+            processed_data["sleepStages"].append({
+                "level": row["level"],
+                "startTime": row["startTime"].isoformat(),
+                "endTime": row["endTime"].isoformat(),
+                "durationSeconds": row["seconds"]
+            })
+        total_awake_time_seconds = all_sleep_df[all_sleep_df['level'] == 'wake']['seconds'].sum()
+        processed_data["metadata"]["totalAwakeTimeMinutes"] = round(total_awake_time_seconds / 60)
+
+
+    # Process heart rate
+    if heart_rate_data and 'activities-heart-intraday' in heart_rate_data:
+        intraday_dataset = heart_rate_data['activities-heart-intraday']['dataset']
+        if intraday_dataset:
+            hr_df = pd.DataFrame(intraday_dataset)
+            start_date_str = heart_rate_data['activities-heart'][0]['dateTime']
+            current_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            
+            timestamps = []
+            last_time = None
+            for t_str in hr_df['time']:
+                time_obj = datetime.strptime(t_str, '%H:%M:%S').time()
+                if last_time and time_obj < last_time:
+                    current_date += timedelta(days=1)
+                # Make the timestamp timezone-aware (UTC)
+                aware_timestamp = datetime.combine(current_date, time_obj).replace(tzinfo=timezone.utc)
+                timestamps.append(aware_timestamp)
+                last_time = time_obj
+            
+            hr_df['time'] = timestamps
+            hr_df = hr_df[(hr_df['time'] >= start_datetime) & (hr_df['time'] <= end_datetime)]
+
+            for index, row in hr_df.iterrows():
+                processed_data["heartRate"].append({
+                    "time": row["time"].isoformat(),
+                    "value": row["value"]
+                })
+
+    return processed_data
+
 @app.route("/detailed-sleep-data")
 @login_required
 def detailed_sleep_data():
@@ -322,6 +401,54 @@ def detailed_sleep_data():
     except (TokenExpiredError, MissingTokenError):
         session.pop("oauth_token", None)
         return redirect(url_for("login"))
+
+@app.route("/api/v1/sleep-data")
+@login_required
+def api_sleep_data():
+    fitbit = get_fitbit_session()
+    try:
+        start_datetime_str = request.args.get('start_datetime')
+        end_datetime_str = request.args.get('end_datetime')
+
+        if start_datetime_str and end_datetime_str:
+            start_datetime = datetime.fromisoformat(start_datetime_str)
+            end_datetime = datetime.fromisoformat(end_datetime_str)
+        else:
+            # Default to a sensible range if not provided
+            end_datetime = datetime.now()
+            start_datetime = end_datetime - timedelta(hours=12)
+
+        heart_rate_data = fetch_intraday_heart_rate(fitbit, start_datetime, end_datetime)
+        
+        all_sleep_logs = []
+        current_date = start_datetime.date()
+        while current_date <= end_datetime.date():
+            date_str = current_date.strftime('%Y-%m-%d')
+            sleep_api_url = f"https://api.fitbit.com/1.2/user/-/sleep/date/{date_str}.json"
+            sleep_response = fitbit.get(sleep_api_url)
+            if sleep_response.status_code == 200:
+                sleep_data = sleep_response.json()
+                if sleep_data.get('sleep'):
+                    all_sleep_logs.extend(sleep_data['sleep'])
+            else:
+                app.logger.error(f"Fitbit sleep API request failed: {sleep_response.status_code} {sleep_response.text}")
+            current_date += timedelta(days=1)
+
+        processed_data = process_sleep_data_for_api(all_sleep_logs, heart_rate_data, start_datetime, end_datetime)
+
+        return jsonify(processed_data)
+
+    except (TokenExpiredError, MissingTokenError):
+        return jsonify({"error": "authentication_required"}), 401
+    except Exception as e:
+        app.logger.error(f"An error occurred in /api/v1/sleep-data: {e}")
+        return jsonify({"error": "internal_server_error"}), 500
+
+@app.route("/api/v1/auth-status")
+@login_required
+def auth_status():
+    """A lightweight endpoint to check if the user has an active session."""
+    return jsonify({"isAuthenticated": True})
 
 
 if __name__ == "__main__":
