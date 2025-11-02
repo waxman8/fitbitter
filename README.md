@@ -66,7 +66,7 @@ You will now see your application's details, including the **"OAuth 2.0 Client I
 3.  Open your web browser and go to `http://127.0.0.1:5000`.
 4.  Click the "Login with Fitbit" link and authorize the application.
 
-You should be redirected back to the application and see a list of your connected Fitbit devices.
+You should be redirected back to the application and see a list of your Fitbit devices as well as a few menu items for querying some data from Fitbit. 
 
 ## Dashboard
 

@@ -9,8 +9,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@types/react-datepicker": "^6.2.0",
     "next": "16.0.1",
     "react": "19.2.0",
+    "react-aria-components": "^1.13.0",
+    "react-datepicker": "^8.8.0",
     "react-dom": "19.2.0",
     "recharts": "^3.3.0"
   },
