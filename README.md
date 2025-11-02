@@ -67,3 +67,26 @@ You will now see your application's details, including the **"OAuth 2.0 Client I
 4.  Click the "Login with Fitbit" link and authorize the application.
 
 You should be redirected back to the application and see a list of your connected Fitbit devices.
+
+## Dashboard
+
+This project includes a Next.js dashboard to visualize your Fitbit data.
+
+### Running the Dashboard
+
+1.  **Navigate to the dashboard directory:**
+    ```bash
+    cd dashboard
+    ```
+
+2.  **Install the dependencies:**
+    ```bash
+    npm install
+    ```
+
+3.  **Run the development server:**
+    ```bash
+    npm run dev
+    ```
+
+4.  Open your web browser and go to `http://localhost:3000`.
