@@ -23,6 +23,7 @@ interface SleepData {
     time: string;
     value: number;
   }[];
+  restingHeartRate?: number;
 }
 
 interface SmoothedHeartRate {
@@ -31,10 +32,10 @@ interface SmoothedHeartRate {
 }
 
 const sleepStageMapping = {
-  wake: { level: 4, color: '#facc15' }, // yellow-400
-  rem: { level: 3, color: '#8b5cf6' },  // violet-500
-  light: { level: 2, color: '#3b82f6' }, // blue-500
-  deep: { level: 1, color: '#1f2937' }, // gray-800
+  wake: { level: 4, color: '#ffdd57' }, // brighter, pastel yellow
+  rem: { level: 3, color: '#9b59b6' },  // a soft purple
+  light: { level: 2, color: '#3498db' }, // a gentle blue
+  deep: { level: 1, color: '#2ecc71' }, // a calm green
 };
 
 type SleepStage = keyof typeof sleepStageMapping;
@@ -52,9 +53,10 @@ export default function SleepChart({ data }: { data: SleepData }) {
       return [];
     }
 
-    const combinedData: { time: number; heartRate?: number; sleepStage?: number; sleepColor?: string }[] = smoothedHeartRate.map(hr => ({
+    const combinedData: { time: number; heartRate?: number; sleepStage?: number; sleepColor?: string, restingHeartRate?: number }[] = smoothedHeartRate.map(hr => ({
       time: new Date(hr.time).getTime(),
       heartRate: hr.value ?? undefined,
+      restingHeartRate: data.restingHeartRate,
     }));
 
     const timeToDataMap = new Map(combinedData.map(d => [d.time, d]));
@@ -90,6 +92,23 @@ export default function SleepChart({ data }: { data: SleepData }) {
     return Math.max(...validValues);
   }, [smoothedHeartRate]);
 
+  const xAxisTicks = useMemo(() => {
+    if (!chartData.length) {
+      return [];
+    }
+    const startTime = chartData[0].time;
+    const endTime = chartData[chartData.length - 1].time;
+    const ticks = [];
+    let currentTick = new Date(startTime);
+    currentTick.setMinutes(Math.ceil(currentTick.getMinutes() / 15) * 15, 0, 0);
+
+    while (currentTick.getTime() <= endTime) {
+      ticks.push(currentTick.getTime());
+      currentTick.setMinutes(currentTick.getMinutes() + 15);
+    }
+    return ticks;
+  }, [chartData]);
+
   if (!chartData.length) {
     return <p>No data available to display chart.</p>;
   }
@@ -103,6 +122,7 @@ export default function SleepChart({ data }: { data: SleepData }) {
     if (active && payload && payload.length) {
       const time = new Date(label).toLocaleString();
       const heartRate = payload.find((p: any) => p.dataKey === 'heartRate')?.value;
+      const restingHeartRate = payload.find((p: any) => p.dataKey === 'restingHeartRate')?.value;
       const sleepStageLevel = payload.find((p: any) => p.dataKey === 'sleepStage')?.value;
       const sleepStage = yAxisTickFormatter(sleepStageLevel);
 
@@ -110,6 +130,7 @@ export default function SleepChart({ data }: { data: SleepData }) {
         <div className="bg-gray-800 text-gray-200 p-2 border border-gray-600 rounded shadow-lg">
           <p className="label font-semibold">{`${time}`}</p>
           {heartRate && <p className="intro">{`Heart Rate: ${Math.round(heartRate)} bpm`}</p>}
+          {restingHeartRate && <p className="intro">{`Resting Heart Rate: ${Math.round(restingHeartRate)} bpm`}</p>}
           {sleepStage && <p className="intro">{`Sleep Stage: ${sleepStage}`}</p>}
         </div>
       );
@@ -130,6 +151,7 @@ export default function SleepChart({ data }: { data: SleepData }) {
           domain={['dataMin', 'dataMax']}
           tickFormatter={(unixTime) => new Date(unixTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           scale="time"
+          ticks={xAxisTicks}
         />
         <YAxis
           yAxisId="left"
@@ -137,6 +159,7 @@ export default function SleepChart({ data }: { data: SleepData }) {
           stroke="#ef4444"
           label={{ value: 'Heart Rate (bpm)', angle: -90, position: 'insideLeft' }}
           domain={[40, maxHeartRate + 5]}
+          tickFormatter={(value) => String(Math.round(value))}
         />
         <YAxis
           yAxisId="right"
@@ -161,9 +184,19 @@ export default function SleepChart({ data }: { data: SleepData }) {
           yAxisId="left"
           type="monotone"
           dataKey="heartRate"
-          stroke="#ef4444" // red-500
+          stroke="#ff7f0e" // a vibrant orange
           dot={false}
           name="Heart Rate"
+        />
+        
+        <Line
+          yAxisId="left"
+          type="monotone"
+          dataKey="restingHeartRate"
+          stroke="#FFFFFF"
+          strokeWidth={2}
+          dot={false}
+          name="Resting Heart Rate"
         />
       </ComposedChart>
     </ResponsiveContainer>

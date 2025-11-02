@@ -92,7 +92,9 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if "oauth_token" not in session:
-            return redirect(url_for("login"))
+            if request.path.startswith('/api/'):
+                return jsonify({"error": "authentication_required"}), 401
+            return redirect(url_for("login", source="dashboard" if request.path.startswith('/api/') else None))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -194,6 +196,20 @@ def detailed_heart_rate():
         session.pop("oauth_token", None)
         return redirect(url_for("login"))
 
+def fetch_daily_heart_rate(fitbit, start_date, end_date):
+    """Fetches daily heart rate data, including resting heart rate, for a given date range."""
+    start_date_str = start_date.strftime('%Y-%m-%d')
+    end_date_str = end_date.strftime('%Y-%m-%d')
+    
+    api_url = f"https://api.fitbit.com/1/user/-/activities/heart/date/{start_date_str}/{end_date_str}.json"
+    
+    response = fitbit.get(api_url)
+    
+    if response.status_code == 200:
+        return response.json()
+    else:
+        app.logger.error(f"Fitbit API request for daily heart rate failed with status code {response.status_code}: {response.text}")
+        return None
 
 def fetch_intraday_heart_rate(fitbit, start_datetime, end_datetime):
     hr_start_date_str = start_datetime.strftime('%Y-%m-%d')
@@ -290,7 +306,7 @@ def process_sleep_data(all_sleep_logs, heart_rate_data, start_datetime, end_date
             total_awake_time = all_sleep_df[all_sleep_df['level'] == 'wake']['seconds'].sum()
     return graphJSON, total_awake_time
 
-def process_sleep_data_for_api(all_sleep_logs, heart_rate_data, start_datetime, end_datetime):
+def process_sleep_data_for_api(all_sleep_logs, heart_rate_data, daily_heart_rate_data, start_datetime, end_datetime):
     """Processes sleep and heart rate data and returns it in a structured JSON format for an API."""
     processed_data = {
         "metadata": {
@@ -299,7 +315,8 @@ def process_sleep_data_for_api(all_sleep_logs, heart_rate_data, start_datetime, 
             "totalAwakeTimeMinutes": 0
         },
         "sleepStages": [],
-        "heartRate": []
+        "heartRate": [],
+        "restingHeartRate": None
     }
     total_awake_time_seconds = 0
 
@@ -357,6 +374,13 @@ def process_sleep_data_for_api(all_sleep_logs, heart_rate_data, start_datetime, 
                     "time": row["time"].isoformat(),
                     "value": row["value"]
                 })
+
+    # Process resting heart rate for the start date
+    if daily_heart_rate_data and 'activities-heart' in daily_heart_rate_data and daily_heart_rate_data['activities-heart']:
+        first_day_data = daily_heart_rate_data['activities-heart'][0]
+        rhr = first_day_data.get('value', {}).get('restingHeartRate')
+        if rhr is not None:
+            processed_data["restingHeartRate"] = rhr
 
     return processed_data
 
@@ -419,6 +443,7 @@ def api_sleep_data():
             start_datetime = end_datetime - timedelta(hours=12)
 
         heart_rate_data = fetch_intraday_heart_rate(fitbit, start_datetime, end_datetime)
+        daily_heart_rate_data = fetch_daily_heart_rate(fitbit, start_datetime.date(), end_datetime.date())
         
         all_sleep_logs = []
         current_date = start_datetime.date()
@@ -434,7 +459,7 @@ def api_sleep_data():
                 app.logger.error(f"Fitbit sleep API request failed: {sleep_response.status_code} {sleep_response.text}")
             current_date += timedelta(days=1)
 
-        processed_data = process_sleep_data_for_api(all_sleep_logs, heart_rate_data, start_datetime, end_datetime)
+        processed_data = process_sleep_data_for_api(all_sleep_logs, heart_rate_data, daily_heart_rate_data, start_datetime, end_datetime)
 
         return jsonify(processed_data)
 
