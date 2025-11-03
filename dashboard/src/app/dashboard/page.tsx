@@ -61,18 +61,20 @@ export default function Dashboard() {
 
   return (
     <main className="flex min-h-screen flex-col items-center p-24">
-      <h1 className="text-4xl font-bold mb-10">Your Sleep Data</h1>
+      <h1 className="text-4xl font-bold bg-gradient-to-r from-orange-400 to-purple-400 bg-clip-text text-transparent mb-8">
+        Your Sleep Data
+      </h1>
       <a href="/" className="mb-10 text-blue-500 hover:underline">Back to Home</a>
 
-      <div className="flex items-end space-x-4 mb-10">
-        <div className="w-50">
+      <div className="flex flex-col sm:flex-row gap-4 items-center justify-center mb-10">
+        <div className="flex flex-col">
           <DateTimePicker
             label="Start Date"
             selected={startDate}
             onChange={(date) => date && setStartDate(date)}
           />
         </div>
-        <div className="w-50">
+        <div className="flex flex-col">
           <DateTimePicker
             label="End Date"
             selected={endDate}
@@ -81,7 +83,7 @@ export default function Dashboard() {
         </div>
         <button
           onClick={fetchData}
-          className="px-4 py-2 text-white bg-blue-500 rounded-md hover:bg-blue-600"
+          className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white px-6 py-2 rounded-lg font-semibold transition-all mt-6"
         >
           Go
         </button>

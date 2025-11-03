@@ -4,6 +4,7 @@ import {
   Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Bar, Cell
 } from 'recharts';
 import { useMemo } from 'react';
+import { motion } from 'framer-motion';
 import { calculateRollingAverage } from '@/utils/smoothing';
 
 // Define the structure of our data props
@@ -32,10 +33,10 @@ interface SmoothedHeartRate {
 }
 
 const sleepStageMapping = {
-  wake: { level: 4, color: '#ffdd57' }, // brighter, pastel yellow
-  rem: { level: 3, color: '#9b59b6' },  // a soft purple
-  light: { level: 2, color: '#3498db' }, // a gentle blue
-  deep: { level: 1, color: '#2ecc71' }, // a calm green
+  wake: { level: 4, color: '#c084fc' },   // light purple
+  rem: { level: 3, color: '#a855f7' },    // medium purple
+  light: { level: 2, color: '#7c3aed' },  // deeper purple
+  deep: { level: 1, color: '#5b21b6' },   // dark purple
 };
 
 type SleepStage = keyof typeof sleepStageMapping;
@@ -127,78 +128,100 @@ export default function SleepChart({ data }: { data: SleepData }) {
       const sleepStage = yAxisTickFormatter(sleepStageLevel);
 
       return (
-        <div className="bg-gray-800 text-gray-200 p-2 border border-gray-600 rounded shadow-lg">
-          <p className="label font-semibold">{`${time}`}</p>
-          {heartRate && <p className="intro">{`Heart Rate: ${Math.round(heartRate)} bpm`}</p>}
-          {restingHeartRate && <p className="intro">{`Resting Heart Rate: ${Math.round(restingHeartRate)} bpm`}</p>}
-          {sleepStage && <p className="intro">{`Sleep Stage: ${sleepStage}`}</p>}
-        </div>
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gray-900 text-gray-100 p-3 border border-gray-600 rounded-lg shadow-2xl backdrop-blur-sm"
+        >
+          <p className="font-semibold text-sm">{`${time}`}</p>
+          {heartRate && <p className="text-orange-400 text-xs mt-1">{`Heart Rate: ${Math.round(heartRate)} bpm`}</p>}
+          {restingHeartRate && <p className="text-white text-xs">{`Resting: ${Math.round(restingHeartRate)} bpm`}</p>}
+          {sleepStage && <p className="text-purple-300 text-xs">{`Sleep: ${sleepStage}`}</p>}
+        </motion.div>
       );
     }
     return null;
   };
 
   return (
-    <ResponsiveContainer width="100%" height={400}>
-      <ComposedChart
-        data={chartData}
-        margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-      >
-        <CartesianGrid strokeDasharray="3 3" />
-        <XAxis
-          dataKey="time"
-          type="number"
-          domain={['dataMin', 'dataMax']}
-          tickFormatter={(unixTime) => new Date(unixTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          scale="time"
-          ticks={xAxisTicks}
-        />
-        <YAxis
-          yAxisId="left"
-          orientation="left"
-          stroke="#ef4444"
-          label={{ value: 'Heart Rate (bpm)', angle: -90, position: 'insideLeft' }}
-          domain={[40, maxHeartRate + 5]}
-          tickFormatter={(value) => String(Math.round(value))}
-        />
-        <YAxis
-          yAxisId="right"
-          orientation="right"
-          stroke="#8884d8"
-          type="number"
-          domain={[0.5, 4.5]}
-          ticks={[1, 2, 3, 4]}
-          tickFormatter={yAxisTickFormatter}
-          label={{ value: 'Sleep Stage', angle: 90, position: 'insideRight' }}
-        />
-        <Tooltip content={<CustomTooltip />} />
-        <Legend />
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="w-full bg-gradient-to-br from-gray-900 to-black p-6 rounded-lg"
+    >
+      <ResponsiveContainer width="100%" height={400}>
+        <ComposedChart
+          data={chartData}
+          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+        >
+          <defs>
+            <linearGradient id="heartRateGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#ff7f0e" stopOpacity={0.8}/>
+              <stop offset="95%" stopColor="#ff7f0e" stopOpacity={0.5}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+          <XAxis
+            dataKey="time"
+            type="number"
+            domain={['dataMin', 'dataMax']}
+            tickFormatter={(unixTime) => new Date(unixTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            scale="time"
+            ticks={xAxisTicks}
+            stroke="#666"
+          />
+          <YAxis
+            yAxisId="left"
+            orientation="left"
+            stroke="#ff7f0e"
+            label={{ value: 'Heart Rate (bpm)', angle: -90, position: 'insideLeft' }}
+            domain={[40, maxHeartRate + 5]}
+            tickFormatter={(value) => String(Math.round(value))}
+          />
+          <YAxis
+            orientation="right"
+            stroke="#8884d8"
+            type="number"
+            domain={[0.5, 4.5]}
+            ticks={[1, 2, 3, 4]}
+            tickFormatter={yAxisTickFormatter}
+            label={{ value: 'Sleep Stage', angle: 90, position: 'insideRight' }}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend 
+            wrapperStyle={{ paddingTop: '20px' }} 
+            formatter={(value) => value === 'sleepStage' ? '' : value}
+          />
 
-        <Bar yAxisId="right" dataKey="sleepStage" barSize={20} >
-          {chartData.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={entry.sleepColor || 'transparent'} />
-          ))}
-        </Bar>
+          <Bar yAxisId="right" dataKey="sleepStage" barSize={20} radius={[2, 2, 0, 0]}>
+            {chartData.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={entry.sleepColor || 'transparent'} />
+            ))}
+          </Bar>
 
-        <Line
-          yAxisId="left"
-          type="monotone"
-          dataKey="heartRate"
-          stroke="#ff7f0e" // a vibrant orange
-          dot={false}
-          name="Heart Rate"
-        />
-        
-        <Line
-          yAxisId="left"
-          type="monotone"
-          dataKey="restingHeartRate"
-          stroke="#FFFFFF"
-          strokeWidth={2}
-          dot={false}
-          name="Resting Heart Rate"
-        />
-      </ComposedChart>
-    </ResponsiveContainer>
+          <Line
+            yAxisId="left"
+            type="monotone"
+            dataKey="heartRate"
+            stroke="url(#heartRateGradient)"
+            strokeWidth={3.0}
+            dot={false}
+            name="Heart Rate"
+            isAnimationActive={true}
+          />
+          
+          <Line
+            yAxisId="left"
+            type="monotone"
+            dataKey="restingHeartRate"
+            stroke="#FFFFFF"
+            strokeWidth={2}
+            strokeDasharray="5 5"
+            dot={false}
+            name="Resting Heart Rate"
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </motion.div>
   );
 }
