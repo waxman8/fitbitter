@@ -39,8 +39,7 @@ def login():
     fitbit = OAuth2Session(client_id, redirect_uri=redirect_uri, scope=scope)
     authorization_url, state = fitbit.authorization_url(authorization_base_url)
     session["oauth_state"] = state
-    if source:
-        session["login_source"] = source
+    session["login_source"] = source if source else "backend"
     return redirect(authorization_url)
 
 @app.route("/callback")

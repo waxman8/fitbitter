@@ -48,7 +48,7 @@ You will now see your application's details, including the **"OAuth 2.0 Client I
 
 ## Configuration
 
-1.  Rename the `.env.example` file to `.env`. *(We will create this file.)*
+1.  Rename the `.env.example` file to `.env`.
 2.  Open the `.env` file and replace `YOUR_CLIENT_ID` and `YOUR_CLIENT_SECRET` with the credentials you obtained from the Fitbit Developer site.
 
     ```
@@ -70,23 +70,6 @@ You should be redirected back to the application and see a list of your Fitbit d
 
 ## Dashboard
 
-This project includes a Next.js dashboard to visualize your Fitbit data.
-
-### Running the Dashboard
-
-1.  **Navigate to the dashboard directory:**
-    ```bash
-    cd dashboard
-    ```
-
-2.  **Install the dependencies:**
-    ```bash
-    npm install
-    ```
-
-3.  **Run the development server:**
-    ```bash
-    npm run dev
-    ```
-
-4.  Open your web browser and go to `http://localhost:3000`.
+This project includes a Next.js dashboard to showcase how to visualize your Fitbit data with more modern looking graphs. 
+It uses the python app as a back-end. 
+[Link to Dashboard README](dashboard/README.md)

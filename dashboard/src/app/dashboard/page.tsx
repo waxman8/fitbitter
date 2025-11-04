@@ -67,14 +67,14 @@ export default function Dashboard() {
       <a href="/" className="mb-10 text-blue-500 hover:underline">Back to Home</a>
 
       <div className="flex flex-col sm:flex-row gap-4 items-center justify-center mb-10">
-        <div className="flex flex-col">
+        <div className="flex flex-col flex-shrink-0 w-50">
           <DateTimePicker
             label="Start Date"
             selected={startDate}
             onChange={(date) => date && setStartDate(date)}
           />
         </div>
-        <div className="flex flex-col">
+        <div className="flex flex-col flex-shrink-0 w-50">
           <DateTimePicker
             label="End Date"
             selected={endDate}

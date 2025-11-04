@@ -1,14 +1,18 @@
 # Fitbitter Dashboard
 
-This directory contains the source code for the Fitbitter dashboard, a [Next.js](https://nextjs.org/) application designed to visualize your Fitbit data.
+This directory contains the source code for the Fitbitter dashboard, a [Next.js](https://nextjs.org/) application designed to visualize your Fitbit data. It uses the python app for its back-end, session and token handling etc. 
 
 ## Overview
 
-The dashboard provides a user-friendly interface to view and analyze data retrieved from the Fitbit API via the main Python Flask application. It includes visualizations for various metrics such as sleep patterns, heart rate, and more.
+The dashboard provides a user-friendly interface to view and analyze data retrieved from the Fitbit API via the main Python Flask application. It includes a visualization that mixes sleep stages with heart rate and showing most recent resting heart rate. You have to enter the date ranges.  
+This reflects the metric I was most interested in: "heart rate below average resting heart rate during sleep".
 
 ## Getting Started
 
 To run the dashboard locally, follow these steps:
+
+0. **Ensure the python app is running**
+   Follow the steps here [Main README](../README.md)
 
 1.  **Navigate to the dashboard directory:**
     ```bash
