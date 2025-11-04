@@ -34,12 +34,37 @@ interface SmoothedHeartRate {
 
 const sleepStageMapping = {
   wake: { level: 4, color: '#c084fc' },   // light purple
-  rem: { level: 3, color: '#a855f7' },    // medium purple
-  light: { level: 2, color: '#7c3aed' },  // deeper purple
+  light: { level: 3, color: '#a855f7' },    // medium purple
+  rem: { level: 2, color: '#7c3aed' },  // deeper purple
   deep: { level: 1, color: '#5b21b6' },   // dark purple
 };
 
 type SleepStage = keyof typeof sleepStageMapping;
+
+interface CustomTickProps {
+  x: number;
+  y: number;
+  payload: {
+    value: number;
+  };
+}
+
+const CustomYAxisTick = ({ x, y, payload }: CustomTickProps) => {
+  const stage = Object.keys(sleepStageMapping).find(
+    (key) => sleepStageMapping[key as SleepStage].level === payload.value
+  ) as SleepStage | undefined;
+
+  const color = stage ? sleepStageMapping[stage].color : '#FFFFFF'; // Default to white if not found
+  const formattedStage = stage ? stage.toUpperCase() : '';
+
+  return (
+    <g transform={`translate(${x},${y})`}>
+      <text x={1} y={4} textAnchor="start" fill={color} fontSize={12}>
+        {formattedStage}
+      </text>
+    </g>
+  );
+};
 
 export default function SleepChart({ data }: { data: SleepData }) {
   const smoothedHeartRate = useMemo(() => {
@@ -115,8 +140,11 @@ export default function SleepChart({ data }: { data: SleepData }) {
   }
 
   const yAxisTickFormatter = (value: number) => {
+    console.log('yAxisTickFormatter - value:', value);
     const stage = Object.keys(sleepStageMapping).find(key => sleepStageMapping[key as SleepStage].level === value);
-    return stage ? stage.toUpperCase() : '';
+    const formattedStage = stage ? stage.toUpperCase() : '';
+    console.log('yAxisTickFormatter - formattedStage:', formattedStage);
+    return formattedStage;
   };
 
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -152,7 +180,7 @@ export default function SleepChart({ data }: { data: SleepData }) {
       <ResponsiveContainer width="100%" height={400}>
         <ComposedChart
           data={chartData}
-          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+          margin={{ top: 20, right: 20, left: 20, bottom: 5 }}
         >
           <defs>
             <linearGradient id="heartRateGradient" x1="0" y1="0" x2="0" y2="1">
@@ -175,22 +203,33 @@ export default function SleepChart({ data }: { data: SleepData }) {
             orientation="left"
             stroke="#ff7f0e"
             label={{ value: 'Heart Rate (bpm)', angle: -90, position: 'insideLeft' }}
-            domain={[40, maxHeartRate + 5]}
+            domain={[45, maxHeartRate + 5]}
             tickFormatter={(value) => String(Math.round(value))}
           />
           <YAxis
+            yAxisId="right"
             orientation="right"
             stroke="#8884d8"
             type="number"
             domain={[0.5, 4.5]}
             ticks={[1, 2, 3, 4]}
+            tickCount={4}
             tickFormatter={yAxisTickFormatter}
-            label={{ value: 'Sleep Stage', angle: 90, position: 'insideRight' }}
+            tick={<CustomYAxisTick />}
+            label={{ value: 'Sleep Stage', angle: 90, position: 'insideRight' , offset: -15 }}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend 
             wrapperStyle={{ paddingTop: '20px' }} 
-            formatter={(value) => value === 'sleepStage' ? '' : value}
+            formatter={(value) => {
+              if (value === 'sleepStage') {
+                return '';
+              }
+              if (value === 'Resting Heart Rate' && data.restingHeartRate !== undefined) {
+                return `${value} (${Math.round(data.restingHeartRate)} bpm)`;
+              }
+              return value;
+            }}
           />
 
           <Bar yAxisId="right" dataKey="sleepStage" barSize={20} radius={[2, 2, 0, 0]}>
