@@ -1,6 +1,6 @@
 # Fitbitter
 
-A simple Python Flask application to connect to the Fitbit API using OAuth 2.0 and integrat with your data.
+A simple Python Flask application to connect to the Fitbit API using OAuth 2.0 and integrate with your data.
 
 ## Prerequisites
 
