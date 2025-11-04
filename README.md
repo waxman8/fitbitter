@@ -1,6 +1,6 @@
 # Fitbitter
 
-A simple Python Flask application to connect to the Fitbit API using OAuth 2.0 and display user device information.
+A simple Python Flask application to connect to the Fitbit API using OAuth 2.0 and integrat with your data.
 
 ## Prerequisites
 
@@ -71,5 +71,17 @@ You should be redirected back to the application and see a list of your Fitbit d
 ## Dashboard
 
 This project includes a Next.js dashboard to showcase how to visualize your Fitbit data with more modern looking graphs. 
-It uses the python app as a back-end. 
+It uses the python app as a back-end.
 [Link to Dashboard README](dashboard/README.md)
+
+### Architecture Overview
+
+```mermaid
+graph TD
+    A[Fitbit API] -->|OAuth 2.0| B(Python Flask Backend)
+    B -->|Serves HTML & API| C(Web Browser)
+    B -->|API Endpoints| D(Next.js Frontend Dashboard)
+    D -->|Renders UI| C
+```
+
+
