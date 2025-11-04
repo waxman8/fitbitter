@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Fitbitter - Intraday Heart Rate</title>
+    <title>Heart Rate Data</title>
     <style>
         table {
             width: 50%;
@@ -19,7 +19,7 @@
 </head>
 <body>
     <a href="{{ url_for('profile') }}">Home</a>
-    <h1>Detailed Heart Rate</h1>
+    <h1>Heart Rate Data</h1>
     <form method="get" action="{{ url_for('detailed_heart_rate') }}">
         <label for="start_datetime">Start:</label>
         <input type="datetime-local" id="start_datetime" name="start_datetime" value="{{ start_datetime }}">
