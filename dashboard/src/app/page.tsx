@@ -12,7 +12,7 @@ export default function Home() {
     const checkAuthStatus = async () => {
       try {
         // The browser will automatically send the session cookie.
-        const response = await fetch('http://127.0.0.1:5000/api/v1/auth-status', { credentials: 'include' });
+        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/api/v1/auth-status`, { credentials: 'include' });
         if (response.ok) {
           const data = await response.json();
           setIsAuthenticated(data.isAuthenticated);
@@ -32,7 +32,7 @@ export default function Home() {
 
   const handleLogin = () => {
     // Redirect the user to the backend's login route.
-    window.location.href = 'http://127.0.0.1:5000/login?source=dashboard';
+    window.location.href = `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/login?source=dashboard`;
   };
 
   if (isLoading) {

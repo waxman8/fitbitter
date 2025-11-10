@@ -215,7 +215,7 @@ export default function SleepChart({ data }: { data: SleepData }) {
             ticks={[1, 2, 3, 4]}
             tickCount={4}
             tickFormatter={yAxisTickFormatter}
-            tick={<CustomYAxisTick />}
+            tick={(props) => <CustomYAxisTick {...props} />}
             label={{ value: 'Sleep Stage', angle: 90, position: 'insideRight' , offset: -15 }}
           />
           <Tooltip content={<CustomTooltip />} />

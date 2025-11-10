@@ -16,14 +16,14 @@ export default function Dashboard() {
     setError(null);
     try {
       // First, check authentication status
-      const authResponse = await fetch('http://127.0.0.1:5000/api/v1/auth-status', { credentials: 'include' });
+      const authResponse = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_API_URL}/api/v1/auth-status`, { credentials: 'include' });
       if (!authResponse.ok || !(await authResponse.json()).isAuthenticated) {
         window.location.href = '/';
         return;
       }
 
       const response = await fetch(
-        `http://127.0.0.1:5000/api/v1/sleep-data?start_datetime=${startDate.toISOString()}&end_datetime=${endDate.toISOString()}`,
+        `${process.env.NEXT_PUBLIC_BACKEND_API_URL}/api/v1/sleep-data?start_datetime=${startDate.toISOString()}&end_datetime=${endDate.toISOString()}`,
         { credentials: 'include' }
       );
 
