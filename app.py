@@ -19,12 +19,14 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
-CORS(app, resources={r"/api/*": {"origins": "http://127.0.0.1:3000"}}, supports_credentials=True)
+CORS_ORIGIN = os.getenv("CORS_ORIGIN", "http://127.0.0.1:3000")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000")
+CORS(app, resources={r"/api/*": {"origins": CORS_ORIGIN}}, supports_credentials=True)
 
 # Fitbit OAuth 2.0 configuration
 client_id = os.getenv("FITBIT_CLIENT_ID")
 client_secret = os.getenv("FITBIT_CLIENT_SECRET")
-redirect_uri = "http://127.0.0.1:5000/callback"
+redirect_uri = os.getenv("FITBIT_REDIRECT_URI", "http://127.0.0.1:5001/callback")
 authorization_base_url = "https://www.fitbit.com/oauth2/authorize"
 token_url = "https://api.fitbit.com/oauth2/token"
 scope = ["activity", "heartrate", "location", "nutrition", "profile", "settings", "sleep", "social", "weight"]
@@ -64,7 +66,7 @@ def callback():
         session["oauth_token"] = token
         # Redirect based on the source of the login
         if session.get("login_source") == "dashboard":
-            return redirect("http://127.0.0.1:3000/dashboard")
+            return redirect(f"{FRONTEND_URL}/dashboard")
         else:
             return redirect(url_for("profile"))
     
@@ -117,6 +119,7 @@ def profile():
 @app.route("/raw-heart-rate-data")
 @login_required
 def raw_heart_rate_data():
+    print("............. fetching")
     fitbit = get_fitbit_session()
     try:
         # Get today's date
@@ -478,4 +481,4 @@ def auth_status():
 if __name__ == "__main__":
     # This allows us to use a plain HTTP callback
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
-    app.run(debug=True)
+    app.run(debug=True, port=5001)

@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python/
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.hypothesis/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Node.js
+node_modules/
+.next/
+out/
+.env
+.env.local
+.env.development
+.DS_Store
