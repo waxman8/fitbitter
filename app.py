@@ -23,6 +23,10 @@ CORS_ORIGIN = os.getenv("CORS_ORIGIN", "http://127.0.0.1:3000")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000")
 CORS(app, resources={r"/api/*": {"origins": CORS_ORIGIN}}, supports_credentials=True)
 
+# Log configuration values - TODO: Remove in production
+app.logger.info(f"CORS_ORIGIN configured as: {CORS_ORIGIN}")
+app.logger.info(f"FRONTEND_URL configured as: {FRONTEND_URL}")
+
 # Fitbit OAuth 2.0 configuration
 client_id = os.getenv("FITBIT_CLIENT_ID")
 client_secret = os.getenv("FITBIT_CLIENT_SECRET")
@@ -30,6 +34,14 @@ redirect_uri = os.getenv("FITBIT_REDIRECT_URI", "http://127.0.0.1:5001/callback"
 authorization_base_url = "https://www.fitbit.com/oauth2/authorize"
 token_url = "https://api.fitbit.com/oauth2/token"
 scope = ["activity", "heartrate", "location", "nutrition", "profile", "settings", "sleep", "social", "weight"]
+
+# Log each incoming request's origin and path TODO: Remove in production
+@app.before_request
+def log_request_info():
+    origin = request.headers.get('Origin')
+    app.logger.info(f"Request from origin: {origin}")
+    app.logger.info(f"Request path: {request.path}")
+    app.logger.info(f"Request method: {request.method}")
 
 @app.route("/")
 def index():
