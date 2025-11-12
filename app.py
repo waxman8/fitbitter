@@ -19,6 +19,15 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
+
+# Session cookie configuration
+app.config.update(
+    SESSION_COOKIE_SECURE=True,           # Required for HTTPS
+    SESSION_COOKIE_HTTPONLY=True,         # Security
+    SESSION_COOKIE_SAMESITE='None',       # Required for cross-domain
+    SESSION_COOKIE_DOMAIN=None            # Don't restrict domain
+)
+
 CORS_ORIGIN = os.getenv("CORS_ORIGIN", "http://127.0.0.1:3000")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000")
 #CORS(app, resources={r"/api/*": {"origins": CORS_ORIGIN}}, supports_credentials=True)
