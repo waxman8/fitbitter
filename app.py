@@ -21,7 +21,28 @@ app = Flask(__name__)
 app.secret_key = os.urandom(24)
 CORS_ORIGIN = os.getenv("CORS_ORIGIN", "http://127.0.0.1:3000")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000")
-CORS(app, resources={r"/api/*": {"origins": CORS_ORIGIN}}, supports_credentials=True)
+#CORS(app, resources={r"/api/*": {"origins": CORS_ORIGIN}}, supports_credentials=True)
+# elaborate CORS configuration
+CORS(app, 
+     resources={
+         r"/api/*": {
+             "origins": [CORS_ORIGIN],
+             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+             "allow_headers": ["Content-Type", "Authorization", "Accept"],
+             "supports_credentials": True,
+             "expose_headers": ["Content-Type", "Authorization"]
+         }
+     },
+     supports_credentials=True
+)
+
+# Log CORS info for each request - TODO: Remove in production
+@app.before_request
+def log_cors_info():
+    if request.path.startswith('/api/'):
+        app.logger.info(f"🌐 CORS Request - Origin: {request.headers.get('Origin')}")
+        app.logger.info(f"🌐 CORS Request - Method: {request.method}")
+        app.logger.info(f"🌐 CORS_ORIGIN configured as: {CORS_ORIGIN}")
 
 # Log configuration values - TODO: Remove in production
 app.logger.info(f"CORS_ORIGIN configured as: {CORS_ORIGIN}")
@@ -489,6 +510,21 @@ def auth_status():
     """A lightweight endpoint to check if the user has an active session."""
     return jsonify({"isAuthenticated": True})
 
+# CORS handling for all responses
+@app.after_request
+def after_request(response):
+    origin = request.headers.get('Origin')
+    if origin == CORS_ORIGIN:
+        response.headers.add('Access-Control-Allow-Origin', origin)
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
+
+# Preflight handling for auth-status endpoint
+@app.route('/api/v1/auth-status', methods=['OPTIONS'])
+def auth_status_options():
+    return '', 200
 
 if __name__ == "__main__":
     # This allows us to use a plain HTTP callback
