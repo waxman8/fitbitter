@@ -1,18 +1,16 @@
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from functools import wraps
 from flask import Flask, redirect, request, session, url_for, render_template
 from flask_cors import CORS
 from flask.json import jsonify
 import plotly
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import pandas as pd
-import json
 from requests_oauthlib import OAuth2Session
 from oauthlib.oauth2 import TokenExpiredError
 from oauthlib.oauth2.rfc6749.errors import MissingTokenError
 from dotenv import load_dotenv
+
 from fitbit_app import config
 from fitbit_app.api_client import (
     get_fitbit_session,
@@ -24,10 +22,11 @@ from fitbit_app.processor import (
     process_sleep_data,
     process_sleep_data_for_api,
 )
+from fitbit_app.utils import login_required
 
 load_dotenv()
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='../templates')
 app.secret_key = config.SECRET_KEY
 
 # Session cookie configuration
@@ -39,7 +38,7 @@ app.config.update(
 )
 
 # elaborate CORS configuration
-CORS(app,
+CORS(app, 
      resources={
          r"/api/*": {
              "origins": [config.CORS_ORIGIN],
@@ -130,15 +129,6 @@ def logout():
     session.clear()
     return redirect(url_for("index"))
 
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if "oauth_token" not in session:
-            if request.path.startswith('/api/'):
-                return jsonify({"error": "authentication_required"}), 401
-            return redirect(url_for("login", source="dashboard" if request.path.startswith('/api/') else None))
-        return f(*args, **kwargs)
-    return decorated_function
 
 @app.route("/profile")
 @login_required
@@ -238,8 +228,6 @@ def detailed_heart_rate():
     except (TokenExpiredError, MissingTokenError):
         session.pop("oauth_token", None)
         return redirect(url_for("login"))
-
-
 
 @app.route("/detailed-sleep-data")
 @login_required

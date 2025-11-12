@@ -25,6 +25,8 @@ def get_fitbit_session():
         token_updater=lambda t: session.update({"oauth_token": t}),
     )
 
+# The data fetching functions have been moved to the FitbitService class
+# in fitbit_app/service.py. This file now only contains the session setup.
 def fetch_daily_heart_rate(fitbit, start_date, end_date):
     """Fetches daily heart rate data, including resting heart rate, for a given date range."""
     start_date_str = start_date.strftime('%Y-%m-%d')
