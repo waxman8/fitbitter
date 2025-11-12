@@ -13,29 +13,36 @@ from requests_oauthlib import OAuth2Session
 from oauthlib.oauth2 import TokenExpiredError
 from oauthlib.oauth2.rfc6749.errors import MissingTokenError
 from dotenv import load_dotenv
-from fitbit_utils import get_fitbit_session
+from fitbit_app import config
+from fitbit_app.api_client import (
+    get_fitbit_session,
+    fetch_daily_heart_rate,
+    fetch_intraday_heart_rate,
+    fetch_sleep_logs,
+)
+from fitbit_app.processor import (
+    process_sleep_data,
+    process_sleep_data_for_api,
+)
 
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = config.SECRET_KEY
 
 # Session cookie configuration
 app.config.update(
-    SESSION_COOKIE_SECURE=True,           # Required for HTTPS
-    SESSION_COOKIE_HTTPONLY=True,         # Security
-    SESSION_COOKIE_SAMESITE='None',       # Required for cross-domain
-    SESSION_COOKIE_DOMAIN=None            # Don't restrict domain
+    SESSION_COOKIE_SECURE=config.SESSION_COOKIE_SECURE,
+    SESSION_COOKIE_HTTPONLY=config.SESSION_COOKIE_HTTPONLY,
+    SESSION_COOKIE_SAMESITE=config.SESSION_COOKIE_SAMESITE,
+    SESSION_COOKIE_DOMAIN=config.SESSION_COOKIE_DOMAIN
 )
 
-CORS_ORIGIN = os.getenv("CORS_ORIGIN", "http://127.0.0.1:3000")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:3000")
-#CORS(app, resources={r"/api/*": {"origins": CORS_ORIGIN}}, supports_credentials=True)
 # elaborate CORS configuration
-CORS(app, 
+CORS(app,
      resources={
          r"/api/*": {
-             "origins": [CORS_ORIGIN],
+             "origins": [config.CORS_ORIGIN],
              "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
              "allow_headers": ["Content-Type", "Authorization", "Accept"],
              "supports_credentials": True,
@@ -51,19 +58,11 @@ def log_cors_info():
     if request.path.startswith('/api/'):
         app.logger.info(f"🌐 CORS Request - Origin: {request.headers.get('Origin')}")
         app.logger.info(f"🌐 CORS Request - Method: {request.method}")
-        app.logger.info(f"🌐 CORS_ORIGIN configured as: {CORS_ORIGIN}")
+        app.logger.info(f"🌐 CORS_ORIGIN configured as: {config.CORS_ORIGIN}")
 
 # Log configuration values - TODO: Remove in production
-app.logger.info(f"CORS_ORIGIN configured as: {CORS_ORIGIN}")
-app.logger.info(f"FRONTEND_URL configured as: {FRONTEND_URL}")
-
-# Fitbit OAuth 2.0 configuration
-client_id = os.getenv("FITBIT_CLIENT_ID")
-client_secret = os.getenv("FITBIT_CLIENT_SECRET")
-redirect_uri = os.getenv("FITBIT_REDIRECT_URI", "http://127.0.0.1:5001/callback")
-authorization_base_url = "https://www.fitbit.com/oauth2/authorize"
-token_url = "https://api.fitbit.com/oauth2/token"
-scope = ["activity", "heartrate", "location", "nutrition", "profile", "settings", "sleep", "social", "weight"]
+app.logger.info(f"CORS_ORIGIN configured as: {config.CORS_ORIGIN}")
+app.logger.info(f"FRONTEND_URL configured as: {config.FRONTEND_URL}")
 
 # Log each incoming request's origin and path TODO: Remove in production
 @app.before_request
@@ -80,8 +79,8 @@ def index():
 @app.route("/login")
 def login():
     source = request.args.get('source')
-    fitbit = OAuth2Session(client_id, redirect_uri=redirect_uri, scope=scope)
-    authorization_url, state = fitbit.authorization_url(authorization_base_url)
+    fitbit = OAuth2Session(config.CLIENT_ID, redirect_uri=config.REDIRECT_URI, scope=config.SCOPE)
+    authorization_url, state = fitbit.authorization_url(config.AUTHORIZATION_BASE_URL)
     session["oauth_state"] = state
     session["login_source"] = source if source else "backend"
     return redirect(authorization_url)
@@ -95,20 +94,20 @@ def callback():
             session.clear()
             return redirect(url_for("login"))
 
-        fitbit = OAuth2Session(client_id, state=session.get("oauth_state"), redirect_uri=redirect_uri)
+        fitbit = OAuth2Session(config.CLIENT_ID, state=session.get("oauth_state"), redirect_uri=config.REDIRECT_URI)
         
         # Use the authorization code from the request to fetch the token
         code = request.args.get('code')
         token = fitbit.fetch_token(
-            token_url,
-            client_secret=client_secret,
+            config.TOKEN_URL,
+            client_secret=config.CLIENT_SECRET,
             code=code
         )
         
         session["oauth_token"] = token
         # Redirect based on the source of the login
         if session.get("login_source") == "dashboard":
-            return redirect(f"{FRONTEND_URL}/dashboard")
+            return redirect(f"{config.FRONTEND_URL}/dashboard")
         else:
             return redirect(url_for("profile"))
     
@@ -240,193 +239,7 @@ def detailed_heart_rate():
         session.pop("oauth_token", None)
         return redirect(url_for("login"))
 
-def fetch_daily_heart_rate(fitbit, start_date, end_date):
-    """Fetches daily heart rate data, including resting heart rate, for a given date range."""
-    start_date_str = start_date.strftime('%Y-%m-%d')
-    end_date_str = end_date.strftime('%Y-%m-%d')
-    
-    api_url = f"https://api.fitbit.com/1/user/-/activities/heart/date/{start_date_str}/{end_date_str}.json"
-    
-    response = fitbit.get(api_url)
-    
-    if response.status_code == 200:
-        return response.json()
-    else:
-        app.logger.error(f"Fitbit API request for daily heart rate failed with status code {response.status_code}: {response.text}")
-        return None
 
-def fetch_intraday_heart_rate(fitbit, start_datetime, end_datetime):
-    hr_start_date_str = start_datetime.strftime('%Y-%m-%d')
-    hr_end_date_str = end_datetime.strftime('%Y-%m-%d')
-    hr_start_time_str = start_datetime.strftime('%H:%M')
-    hr_end_time_str = end_datetime.strftime('%H:%M')
-
-    hr_api_url = (
-        f"https://api.fitbit.com/1/user/-/activities/heart/date/{hr_start_date_str}/{hr_end_date_str}/1min/"
-        f"time/{hr_start_time_str}/{hr_end_time_str}.json"
-    )
-    print(f"Fetching heart rate data from URL: {hr_api_url}")
-    hr_response = fitbit.get(hr_api_url)
-    return hr_response.json() if hr_response.status_code == 200 else None
-
-def process_sleep_data(all_sleep_logs, heart_rate_data, start_datetime, end_datetime):
-    graphJSON = {}
-    total_awake_time = 0
-    if all_sleep_logs and heart_rate_data:
-        all_sleep_df = pd.DataFrame()
-        for sleep_log in all_sleep_logs:
-            log_start_time = datetime.fromisoformat(sleep_log['startTime'])
-            log_end_time = datetime.fromisoformat(sleep_log['endTime'])
-            if log_start_time < end_datetime and log_end_time > start_datetime:
-                sleep_df = pd.DataFrame(sleep_log['levels']['data'])
-                sleep_df['startTime'] = pd.to_datetime(sleep_df['dateTime'])
-                sleep_df['endTime'] = sleep_df.apply(lambda row: row['startTime'] + timedelta(seconds=row['seconds']), axis=1)
-                all_sleep_df = pd.concat([all_sleep_df, sleep_df])
-
-        if not all_sleep_df.empty:
-            hr_df = pd.DataFrame()
-            if heart_rate_data and 'activities-heart-intraday' in heart_rate_data:
-                intraday_dataset = heart_rate_data['activities-heart-intraday']['dataset']
-                if intraday_dataset:
-                    hr_df = pd.DataFrame(intraday_dataset)
-                    
-                    start_date_str = heart_rate_data['activities-heart'][0]['dateTime']
-                    current_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-                    
-                    timestamps = []
-                    last_time = None
-                    for t_str in hr_df['time']:
-                        time_obj = datetime.strptime(t_str, '%H:%M:%S').time()
-                        if last_time and time_obj < last_time:
-                            current_date += timedelta(days=1)
-                        timestamps.append(datetime.combine(current_date, time_obj))
-                        last_time = time_obj
-                    
-                    hr_df['time'] = timestamps
-
-            if not hr_df.empty:
-                hr_df = hr_df[(hr_df['time'] >= start_datetime) & (hr_df['time'] <= end_datetime)]
-                if not hr_df.empty:
-                    hr_df['smoothed_value'] = hr_df['value'].rolling(window=9, center=True).mean()
-                else:
-                    hr_df['smoothed_value'] = pd.Series(dtype='float64')
-
-            fig = make_subplots(specs=[[{"secondary_y": True}]])
-            sleep_stage_map = {
-                'wake': {'order': 4, 'color': 'YELLOW', 'label': 'WAKE'},
-                'rem': {'order': 3, 'color': 'PURPLE', 'label': 'REM'},
-                'light': {'order': 2, 'color': 'BLUE', 'label': 'LIGHT'},
-                'deep': {'order': 1, 'color': 'BLACK', 'label': 'DEEP'}
-            }
-            heart_rate_color = 'rgba(219, 86, 86, 0.9)'
-            all_sleep_df['order'] = all_sleep_df['level'].map(lambda x: sleep_stage_map.get(x, {}).get('order'))
-
-            for level, data in all_sleep_df.groupby('level'):
-                info = sleep_stage_map.get(level, {})
-                if not info: continue
-                for i, row in data.iterrows():
-                    fig.add_trace(
-                        go.Scatter(
-                            x=[row['startTime'], row['endTime']], y=[info['order'], info['order']],
-                            mode='lines', line=dict(width=20, color=info['color']),
-                            name=info['label'], showlegend=(i == 0)
-                        ),
-                        secondary_y=False,
-                    )
-
-            if not hr_df.empty and 'smoothed_value' in hr_df.columns:
-                fig.add_trace(
-                    go.Scatter(x=hr_df['time'], y=hr_df['smoothed_value'], mode='lines', name='Heart Rate', line=dict(color=heart_rate_color)),
-                    secondary_y=True,
-                )
-            
-            fig.update_yaxes(
-                title_text="Sleep Stage", secondary_y=False,
-                tickvals=[1, 2, 3, 4], ticktext=['DEEP', 'LIGHT', 'REM', 'WAKE'],
-                range=[0.5, 4.5]
-            )
-            fig.update_yaxes(title_text="Heart Rate (bpm)", secondary_y=True)
-            graphJSON = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-            total_awake_time = all_sleep_df[all_sleep_df['level'] == 'wake']['seconds'].sum()
-    return graphJSON, total_awake_time
-
-def process_sleep_data_for_api(all_sleep_logs, heart_rate_data, daily_heart_rate_data, start_datetime, end_datetime):
-    """Processes sleep and heart rate data and returns it in a structured JSON format for an API."""
-    processed_data = {
-        "metadata": {
-            "startTime": start_datetime.isoformat(),
-            "endTime": end_datetime.isoformat(),
-            "totalAwakeTimeMinutes": 0
-        },
-        "sleepStages": [],
-        "heartRate": [],
-        "restingHeartRate": None
-    }
-    total_awake_time_seconds = 0
-
-    if not all_sleep_logs:
-        return processed_data
-
-    # Process sleep stages
-    all_sleep_df = pd.DataFrame()
-    for sleep_log in all_sleep_logs:
-        log_start_time = datetime.fromisoformat(sleep_log['startTime']).replace(tzinfo=timezone.utc)
-        log_end_time = datetime.fromisoformat(sleep_log['endTime']).replace(tzinfo=timezone.utc)
-        if log_start_time < end_datetime and log_end_time > start_datetime:
-            sleep_df = pd.DataFrame(sleep_log['levels']['data'])
-            # Ensure parsed datetimes are timezone-aware (UTC)
-            sleep_df['startTime'] = pd.to_datetime(sleep_df['dateTime']).dt.tz_localize('utc')
-            sleep_df['endTime'] = sleep_df.apply(lambda row: row['startTime'] + timedelta(seconds=row['seconds']), axis=1)
-            all_sleep_df = pd.concat([all_sleep_df, sleep_df])
-
-    if not all_sleep_df.empty:
-        for index, row in all_sleep_df.iterrows():
-            processed_data["sleepStages"].append({
-                "level": row["level"],
-                "startTime": row["startTime"].isoformat(),
-                "endTime": row["endTime"].isoformat(),
-                "durationSeconds": row["seconds"]
-            })
-        total_awake_time_seconds = all_sleep_df[all_sleep_df['level'] == 'wake']['seconds'].sum()
-        processed_data["metadata"]["totalAwakeTimeMinutes"] = round(total_awake_time_seconds / 60)
-
-
-    # Process heart rate
-    if heart_rate_data and 'activities-heart-intraday' in heart_rate_data:
-        intraday_dataset = heart_rate_data['activities-heart-intraday']['dataset']
-        if intraday_dataset:
-            hr_df = pd.DataFrame(intraday_dataset)
-            start_date_str = heart_rate_data['activities-heart'][0]['dateTime']
-            current_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-            
-            timestamps = []
-            last_time = None
-            for t_str in hr_df['time']:
-                time_obj = datetime.strptime(t_str, '%H:%M:%S').time()
-                if last_time and time_obj < last_time:
-                    current_date += timedelta(days=1)
-                # Make the timestamp timezone-aware (UTC)
-                aware_timestamp = datetime.combine(current_date, time_obj).replace(tzinfo=timezone.utc)
-                timestamps.append(aware_timestamp)
-                last_time = time_obj
-            
-            hr_df['time'] = timestamps
-            hr_df = hr_df[(hr_df['time'] >= start_datetime) & (hr_df['time'] <= end_datetime)]
-
-            for index, row in hr_df.iterrows():
-                processed_data["heartRate"].append({
-                    "time": row["time"].isoformat(),
-                    "value": row["value"]
-                })
-
-    # Process resting heart rate for the start date
-    if daily_heart_rate_data and 'activities-heart' in daily_heart_rate_data and daily_heart_rate_data['activities-heart']:
-        first_day_data = daily_heart_rate_data['activities-heart'][0]
-        rhr = first_day_data.get('value', {}).get('restingHeartRate')
-        if rhr is not None:
-            processed_data["restingHeartRate"] = rhr
-
-    return processed_data
 
 @app.route("/detailed-sleep-data")
 @login_required
@@ -444,18 +257,7 @@ def detailed_sleep_data():
             start_datetime = end_datetime - timedelta(hours=23)
 
         heart_rate_data = fetch_intraday_heart_rate(fitbit, start_datetime, end_datetime)
-        
-        all_sleep_logs = []
-        current_date = start_datetime.date()
-        while current_date <= end_datetime.date():
-            date_str = current_date.strftime('%Y-%m-%d')
-            sleep_api_url = f"https://api.fitbit.com/1.2/user/-/sleep/date/{date_str}.json"
-            sleep_response = fitbit.get(sleep_api_url)
-            if sleep_response.status_code == 200:
-                sleep_data = sleep_response.json()
-                if sleep_data.get('sleep'):
-                    all_sleep_logs.extend(sleep_data['sleep'])
-            current_date += timedelta(days=1)
+        all_sleep_logs = fetch_sleep_logs(fitbit, start_datetime, end_datetime)
 
         graphJSON, total_awake_time = process_sleep_data(all_sleep_logs, heart_rate_data, start_datetime, end_datetime)
 
@@ -489,20 +291,7 @@ def api_sleep_data():
 
         heart_rate_data = fetch_intraday_heart_rate(fitbit, start_datetime, end_datetime)
         daily_heart_rate_data = fetch_daily_heart_rate(fitbit, start_datetime.date(), end_datetime.date())
-        
-        all_sleep_logs = []
-        current_date = start_datetime.date()
-        while current_date <= end_datetime.date():
-            date_str = current_date.strftime('%Y-%m-%d')
-            sleep_api_url = f"https://api.fitbit.com/1.2/user/-/sleep/date/{date_str}.json"
-            sleep_response = fitbit.get(sleep_api_url)
-            if sleep_response.status_code == 200:
-                sleep_data = sleep_response.json()
-                if sleep_data.get('sleep'):
-                    all_sleep_logs.extend(sleep_data['sleep'])
-            else:
-                app.logger.error(f"Fitbit sleep API request failed: {sleep_response.status_code} {sleep_response.text}")
-            current_date += timedelta(days=1)
+        all_sleep_logs = fetch_sleep_logs(fitbit, start_datetime, end_datetime)
 
         processed_data = process_sleep_data_for_api(all_sleep_logs, heart_rate_data, daily_heart_rate_data, start_datetime, end_datetime)
 
@@ -524,7 +313,7 @@ def auth_status():
 @app.after_request
 def after_request(response):
     origin = request.headers.get('Origin')
-    if origin == CORS_ORIGIN:
+    if origin == config.CORS_ORIGIN:
         response.headers.add('Access-Control-Allow-Origin', origin)
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept')
         response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
