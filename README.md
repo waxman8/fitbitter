@@ -70,9 +70,10 @@ You should be redirected back to the application and see a list of your Fitbit d
 
 ## Dashboard
 
-This project includes a Next.js dashboard to showcase how to visualize your Fitbit data with more modern looking graphs. 
-It uses the python app as a back-end.
-[Link to Dashboard README](dashboard/README.md)
+This app works well with a Next.js dashboard to showcase how to visualize your Fitbit data with more modern looking graphs.
+The dashboard has moved to its own repository: https://github.com/waxman8/fitbitter-dashboard
+It uses the python app here as its back-end for APIs including authentication and session/token management.
+
 
 ### Architecture Overview
 
