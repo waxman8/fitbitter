@@ -479,8 +479,9 @@ def api_sleep_data():
         end_datetime_str = request.args.get('end_datetime')
 
         if start_datetime_str and end_datetime_str:
-            start_datetime = datetime.fromisoformat(start_datetime_str)
-            end_datetime = datetime.fromisoformat(end_datetime_str)
+            # Use strptime for robust ISO 8601 parsing across Python versions
+            start_datetime = datetime.strptime(start_datetime_str, "%Y-%m-%dT%H:%M:%S.%f%z")
+            end_datetime = datetime.strptime(end_datetime_str, "%Y-%m-%dT%H:%M:%S.%f%z")
         else:
             # Default to a sensible range if not provided
             end_datetime = datetime.now()
