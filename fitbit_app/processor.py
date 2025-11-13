@@ -163,3 +163,14 @@ def process_sleep_data_for_api(all_sleep_logs, heart_rate_data, daily_heart_rate
             processed_data["restingHeartRate"] = rhr
 
     return processed_data
+def process_resting_heart_rate_for_api(daily_heart_rate_data):
+    """Processes daily heart rate data to extract resting heart rate."""
+    resting_heart_rate_list = []
+    if daily_heart_rate_data and 'activities-heart' in daily_heart_rate_data:
+        for day_data in daily_heart_rate_data['activities-heart']:
+            date = day_data.get('dateTime')
+            value_data = day_data.get('value', {})
+            resting_heart_rate = value_data.get('restingHeartRate')
+            if date and resting_heart_rate is not None:
+                resting_heart_rate_list.append({'date': date, 'restingHeartRate': resting_heart_rate})
+    return resting_heart_rate_list

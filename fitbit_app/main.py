@@ -21,6 +21,7 @@ from fitbit_app.api_client import (
 from fitbit_app.processor import (
     process_sleep_data,
     process_sleep_data_for_api,
+    process_resting_heart_rate_for_api,
 )
 from fitbit_app.utils import login_required
 
@@ -259,6 +260,33 @@ def detailed_sleep_data():
     except (TokenExpiredError, MissingTokenError):
         session.pop("oauth_token", None)
         return redirect(url_for("login"))
+
+@app.route("/api/v1/resting-heart-rate")
+@login_required
+def api_resting_heart_rate():
+    fitbit = get_fitbit_session()
+    try:
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
+
+        if not start_date_str or not end_date_str:
+            return jsonify({"error": "start_date and end_date parameters are required"}), 400
+
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+
+        daily_heart_rate_data = fetch_daily_heart_rate(fitbit, start_date, end_date)
+        processed_data = process_resting_heart_rate_for_api(daily_heart_rate_data)
+
+        return jsonify(processed_data)
+
+    except (TokenExpiredError, MissingTokenError):
+        return jsonify({"error": "authentication_required"}), 401
+    except ValueError:
+        return jsonify({"error": "Invalid date format. Please use YYYY-MM-DD."}), 400
+    except Exception as e:
+        app.logger.error(f"An error occurred in /api/v1/resting-heart-rate: {e}")
+        return jsonify({"error": "internal_server_error"}), 500
 
 @app.route("/api/v1/sleep-data")
 @login_required
