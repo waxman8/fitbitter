@@ -1,4 +1,5 @@
 import os
+import logging
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import Flask, redirect, request, session, url_for, render_template
@@ -286,21 +287,18 @@ def api_resting_heart_rate():
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
         
-        all_requested_dates = [start_date + timedelta(days=x) for x in range((end_date - start_date).days + 1)]
+        all_requested_date_strs = [ (start_date + timedelta(days=x)).strftime('%Y-%m-%d') for x in range((end_date - start_date).days + 1) ]
+        cache_keys = [f"rhr_{date_str}" for date_str in all_requested_date_strs]
         
-        cached_data = {}
-        missing_dates = []
+        # Bulk get from cache
+        cached_results = cache.get_many(*cache_keys)
+        cached_data = {result['date']: result for result in cached_results if result and isinstance(result, dict) and 'date' in result}
 
-        for date in all_requested_dates:
-            date_str = date.strftime('%Y-%m-%d')
-            cache_key = f"rhr_{date_str}"
-            day_data = cache.get(cache_key)
-            if day_data:
-                cached_data[date_str] = day_data
-            else:
-                missing_dates.append(date)
+        # Identify missing dates
+        missing_date_strs = [date_str for date_str in all_requested_date_strs if date_str not in cached_data]
         
-        if missing_dates:
+        if missing_date_strs:
+            missing_dates = [datetime.strptime(date_str, '%Y-%m-%d').date() for date_str in missing_date_strs]
             min_missing_date = min(missing_dates)
             max_missing_date = max(missing_dates)
             
@@ -309,16 +307,17 @@ def api_resting_heart_rate():
             if newly_fetched_data and 'activities-heart' in newly_fetched_data:
                 processed_new_data = process_resting_heart_rate_for_api(newly_fetched_data)
                 
+                to_cache = {}
                 for day_data in processed_new_data:
-                    date_str = day_data['date']
-                    cache_key = f"rhr_{date_str}"
-                    cache.set(cache_key, day_data) # cachelib uses default_timeout
-                    
-                    fetched_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-                    if start_date <= fetched_date <= end_date:
-                         cached_data[date_str] = day_data
+                    if isinstance(day_data, dict) and 'date' in day_data:
+                        to_cache[f"rhr_{day_data['date']}"] = day_data
+                        cached_data[day_data['date']] = day_data
 
-        final_data = [cached_data[date.strftime('%Y-%m-%d')] for date in all_requested_dates if date.strftime('%Y-%m-%d') in cached_data]
+                if to_cache:
+                    cache.set_many(to_cache)
+
+        # Reconstruct the final list in the correct order
+        final_data = [cached_data[date_str] for date_str in all_requested_date_strs if date_str in cached_data]
         final_data = sorted(final_data, key=lambda x: x['date'])
         
         return jsonify(final_data)
