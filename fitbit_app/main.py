@@ -10,6 +10,7 @@ from requests_oauthlib import OAuth2Session
 from oauthlib.oauth2 import TokenExpiredError
 from oauthlib.oauth2.rfc6749.errors import MissingTokenError
 from dotenv import load_dotenv
+import redis
 from cachelib import FileSystemCache, RedisCache
 
 from fitbit_app import config
@@ -41,7 +42,8 @@ app.config.update(
 
 # Cache setup
 if config.REDIS_URL:
-    cache = RedisCache.from_url(config.REDIS_URL)
+    redis_client = redis.from_url(config.REDIS_URL)
+    cache = RedisCache(redis_client)
     app.logger.info("Using Redis cache for production.")
 else:
     cache = FileSystemCache('.cache', threshold=500, default_timeout=0)
