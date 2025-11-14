@@ -43,7 +43,7 @@ app.config.update(
 # Cache setup
 if config.REDIS_URL:
     redis_client = redis.from_url(config.REDIS_URL)
-    cache = RedisCache(redis_client)
+    cache = RedisCache(redis_client, default_timeout=0)
     app.logger.info("Using Redis cache for production.")
 else:
     cache = FileSystemCache('.cache', threshold=500, default_timeout=0)
@@ -358,7 +358,7 @@ def api_sleep_data():
 
         processed_data = process_sleep_data_for_api(all_sleep_logs, heart_rate_data, daily_heart_rate_data, start_datetime, end_datetime)
 
-        cache.set(cache_key, processed_data, timeout=3600) # Cache for 1 hour
+        cache.set(cache_key, processed_data)
         return jsonify(processed_data)
 
     except (TokenExpiredError, MissingTokenError):
