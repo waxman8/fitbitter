@@ -10,6 +10,7 @@ from requests_oauthlib import OAuth2Session
 from oauthlib.oauth2 import TokenExpiredError
 from oauthlib.oauth2.rfc6749.errors import MissingTokenError
 from dotenv import load_dotenv
+from cachelib import FileSystemCache, RedisCache
 
 from fitbit_app import config
 from fitbit_app.api_client import (
@@ -38,8 +39,16 @@ app.config.update(
     SESSION_COOKIE_DOMAIN=config.SESSION_COOKIE_DOMAIN
 )
 
+# Cache setup
+if config.REDIS_URL:
+    cache = RedisCache.from_url(config.REDIS_URL)
+    app.logger.info("Using Redis cache for production.")
+else:
+    cache = FileSystemCache('.cache', threshold=500, default_timeout=0)
+    app.logger.info("Using FileSystemCache for local development.")
+
 # elaborate CORS configuration
-CORS(app, 
+CORS(app,
      resources={
          r"/api/*": {
              "origins": [config.CORS_ORIGIN],
@@ -274,11 +283,43 @@ def api_resting_heart_rate():
 
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        
+        all_requested_dates = [start_date + timedelta(days=x) for x in range((end_date - start_date).days + 1)]
+        
+        cached_data = {}
+        missing_dates = []
 
-        daily_heart_rate_data = fetch_daily_heart_rate(fitbit, start_date, end_date)
-        processed_data = process_resting_heart_rate_for_api(daily_heart_rate_data)
+        for date in all_requested_dates:
+            date_str = date.strftime('%Y-%m-%d')
+            cache_key = f"rhr_{date_str}"
+            day_data = cache.get(cache_key)
+            if day_data:
+                cached_data[date_str] = day_data
+            else:
+                missing_dates.append(date)
+        
+        if missing_dates:
+            min_missing_date = min(missing_dates)
+            max_missing_date = max(missing_dates)
+            
+            newly_fetched_data = fetch_daily_heart_rate(fitbit, min_missing_date, max_missing_date)
+            
+            if newly_fetched_data and 'activities-heart' in newly_fetched_data:
+                processed_new_data = process_resting_heart_rate_for_api(newly_fetched_data)
+                
+                for day_data in processed_new_data:
+                    date_str = day_data['date']
+                    cache_key = f"rhr_{date_str}"
+                    cache.set(cache_key, day_data) # cachelib uses default_timeout
+                    
+                    fetched_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                    if start_date <= fetched_date <= end_date:
+                         cached_data[date_str] = day_data
 
-        return jsonify(processed_data)
+        final_data = [cached_data[date.strftime('%Y-%m-%d')] for date in all_requested_dates if date.strftime('%Y-%m-%d') in cached_data]
+        final_data = sorted(final_data, key=lambda x: x['date'])
+        
+        return jsonify(final_data)
 
     except (TokenExpiredError, MissingTokenError):
         return jsonify({"error": "authentication_required"}), 401
@@ -296,12 +337,16 @@ def api_sleep_data():
         start_datetime_str = request.args.get('start_datetime')
         end_datetime_str = request.args.get('end_datetime')
 
+        cache_key = f"sleep_data_{start_datetime_str}_{end_datetime_str}"
+        
+        cached_response = cache.get(cache_key)
+        if cached_response:
+            return jsonify(cached_response)
+
         if start_datetime_str and end_datetime_str:
-            # Use strptime for robust ISO 8601 parsing across Python versions
             start_datetime = datetime.strptime(start_datetime_str, "%Y-%m-%dT%H:%M:%S.%f%z")
             end_datetime = datetime.strptime(end_datetime_str, "%Y-%m-%dT%H:%M:%S.%f%z")
         else:
-            # Default to a sensible range if not provided
             end_datetime = datetime.now()
             start_datetime = end_datetime - timedelta(hours=12)
 
@@ -311,6 +356,7 @@ def api_sleep_data():
 
         processed_data = process_sleep_data_for_api(all_sleep_logs, heart_rate_data, daily_heart_rate_data, start_datetime, end_datetime)
 
+        cache.set(cache_key, processed_data, timeout=3600) # Cache for 1 hour
         return jsonify(processed_data)
 
     except (TokenExpiredError, MissingTokenError):
