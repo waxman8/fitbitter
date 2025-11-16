@@ -304,17 +304,37 @@ def api_resting_heart_rate():
             
             newly_fetched_data = fetch_daily_heart_rate(fitbit, min_missing_date, max_missing_date)
             
+            to_cache = {}
             if newly_fetched_data and 'activities-heart' in newly_fetched_data:
                 processed_new_data = process_resting_heart_rate_for_api(newly_fetched_data)
+                processed_data_map = {item['date']: item for item in processed_new_data}
+
+                # Backfill logic
+                # Sort all available data by date to find the last known RHR
+                all_available_data = sorted(list(cached_data.values()) + processed_new_data, key=lambda x: x['date'])
+                last_known_rhr = None
+                if all_available_data:
+                    # Find the last entry that has a valid restingHeartRate
+                    for item in reversed(all_available_data):
+                        if item.get('restingHeartRate') is not None:
+                            last_known_rhr = item['restingHeartRate']
+                            break
                 
-                to_cache = {}
-                for day_data in processed_new_data:
-                    if isinstance(day_data, dict) and 'date' in day_data:
+                for date_str in missing_date_strs:
+                    if date_str in processed_data_map:
+                        # This date had a valid RHR from the API
+                        day_data = processed_data_map[date_str]
                         to_cache[f"rhr_{day_data['date']}"] = day_data
                         cached_data[day_data['date']] = day_data
-
-                if to_cache:
-                    cache.set_many(to_cache)
+                    else:
+                        # This date is missing from the API response, backfill it
+                        if last_known_rhr is not None:
+                            backfilled_data = {'date': date_str, 'restingHeartRate': last_known_rhr}
+                            to_cache[f"rhr_{date_str}"] = backfilled_data
+                            cached_data[date_str] = backfilled_data
+            
+            if to_cache:
+                cache.set_many(to_cache)
 
         # Reconstruct the final list in the correct order
         final_data = [cached_data[date_str] for date_str in all_requested_date_strs if date_str in cached_data]
