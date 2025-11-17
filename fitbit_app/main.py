@@ -20,11 +20,13 @@ from fitbit_app.api_client import (
     fetch_daily_heart_rate,
     fetch_intraday_heart_rate,
     fetch_sleep_logs,
+    fetch_spo2_intraday,
 )
 from fitbit_app.processor import (
     process_sleep_data,
     process_sleep_data_for_api,
     process_resting_heart_rate_for_api,
+    process_spo2_data_for_api,
 )
 from fitbit_app.utils import login_required
 
@@ -384,6 +386,40 @@ def api_sleep_data():
         return jsonify({"error": "authentication_required"}), 401
     except Exception as e:
         app.logger.error(f"An error occurred in /api/v1/sleep-data: {e}")
+
+@app.route("/api/v1/spo2-intraday")
+@login_required
+def api_spo2_intraday():
+    fitbit = get_fitbit_session()
+    try:
+        start_datetime_str = request.args.get('start_datetime')
+        end_datetime_str = request.args.get('end_datetime')
+
+        if not start_datetime_str or not end_datetime_str:
+            return jsonify({"error": "start_datetime and end_datetime parameters are required"}), 400
+
+        cache_key = f"spo2_data_{start_datetime_str}_{end_datetime_str}"
+        
+        cached_response = cache.get(cache_key)
+        if cached_response:
+            return jsonify(cached_response)
+
+        start_datetime = datetime.strptime(start_datetime_str, "%Y-%m-%dT%H:%M:%S.%f%z")
+        end_datetime = datetime.strptime(end_datetime_str, "%Y-%m-%dT%H:%M:%S.%f%z")
+
+        raw_spo2_data = fetch_spo2_intraday(fitbit, start_datetime, end_datetime)
+        processed_data = process_spo2_data_for_api(raw_spo2_data)
+
+        cache.set(cache_key, processed_data)
+        return jsonify(processed_data)
+
+    except (TokenExpiredError, MissingTokenError):
+        return jsonify({"error": "authentication_required"}), 401
+    except ValueError:
+        return jsonify({"error": "Invalid datetime format. Please use ISO format."}), 400
+    except Exception as e:
+        app.logger.error(f"An error occurred in /api/v1/spo2-intraday: {e}")
+        return jsonify({"error": "internal_server_error"}), 500
         return jsonify({"error": "internal_server_error"}), 500
 
 @app.route("/api/v1/auth-status")

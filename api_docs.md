@@ -109,20 +109,27 @@ Returns a JSON object containing processed sleep and heart rate data.
     {
       "error": "internal_server_error"
     }
-## Resting Heart Rate
+    ```
+---
 
-**Endpoint:** `/api/v1/resting-heart-rate`
+### 3. Resting Heart Rate
 
-**Method:** `GET`
+Retrieves the daily resting heart rate for a specified date range.
 
-**Description:** Retrieves the resting heart rate for a given date range.
+-   **URL**: `/api/v1/resting-heart-rate`
+-   **Method**: `GET`
+-   **Authentication**: Required.
 
-**Parameters:**
+**Query Parameters**
 
-- `start_date` (string, required): The start date in `YYYY-MM-DD` format.
-- `end_date` (string, required): The end date in `YYYY-MM-DD` format.
+| Parameter    | Type   | Description                               | Required |
+|--------------|--------|-------------------------------------------|----------|
+| `start_date` | string | The start of the date range in `YYYY-MM-DD`. | Yes      |
+| `end_date`   | string | The end of the date range in `YYYY-MM-DD`.   | Yes      |
 
-**Example Response:**
+**Success Response (200 OK)**
+
+Returns a JSON array of objects, each containing a date and the resting heart rate for that day.
 
 ```json
 [
@@ -136,3 +143,79 @@ Returns a JSON object containing processed sleep and heart rate data.
   }
 ]
 ```
+
+**Error Responses**
+
+-   **400 Bad Request**: Returned if `start_date` or `end_date` are missing or in an invalid format.
+    ```json
+    {
+      "error": "Invalid date format. Please use YYYY-MM-DD."
+    }
+    ```
+-   **401 Unauthorized**: Returned if the user does not have a valid session.
+    ```json
+    {
+      "error": "authentication_required"
+    }
+    ```
+-   **500 Internal Server Error**: Returned if an unexpected error occurs on the server.
+    ```json
+    {
+      "error": "internal_server_error"
+    }
+    ```
+---
+
+### 4. Intraday SpO2 Data
+
+Fetches intraday SpO2 (blood oxygen saturation) data for a specified time range.
+
+-   **URL**: `/api/v1/spo2-intraday`
+-   **Method**: `GET`
+-   **Authentication**: Required.
+
+**Query Parameters**
+
+| Parameter        | Type   | Description                                                                                                 | Required |
+| ---------------- | ------ | ----------------------------------------------------------------------------------------------------------- | -------- |
+| `start_datetime` | string | The start of the time range in ISO 8601 format (`YYYY-MM-DDTHH:MM:SS.ffffffZ`). | Yes      |
+| `end_datetime`   | string | The end of the time range in ISO 8601 format (`YYYY-MM-DDTHH:MM:SS.ffffffZ`).   | Yes      |
+
+**Success Response (200 OK)**
+
+Returns a JSON object containing the intraday SpO2 data.
+
+```json
+{
+  "minutes": [
+    {
+      "minute": "2023-10-27T00:00:00",
+      "value": 95.5
+    },
+    {
+      "minute": "2023-10-27T00:01:00",
+      "value": 96.0
+    }
+  ]
+}
+```
+
+**Error Responses**
+
+-   **400 Bad Request**: Returned if `start_datetime` or `end_datetime` are missing or in an invalid format.
+    ```json
+    {
+      "error": "start_datetime and end_datetime parameters are required"
+    }
+    ```
+-   **401 Unauthorized**: Returned if the user does not have a valid session.
+    ```json
+    {
+      "error": "authentication_required"
+    }
+    ```
+-   **500 Internal Server Error**: Returned if an unexpected error occurs on the server.
+    ```json
+    {
+      "error": "internal_server_error"
+    }

@@ -174,3 +174,17 @@ def process_resting_heart_rate_for_api(daily_heart_rate_data):
             if date and resting_heart_rate is not None:
                 resting_heart_rate_list.append({'date': date, 'restingHeartRate': resting_heart_rate})
     return resting_heart_rate_list
+
+def process_spo2_data_for_api(spo2_data):
+    """
+    Processes intraday SpO2 data for the API.
+    
+    :param spo2_data: The raw SpO2 data from the Fitbit API.
+    :return: Processed SpO2 data.
+    """
+    if not spo2_data or 'minutes' not in spo2_data:
+        return {"error": "No SpO2 data available."}
+
+    # For now, we'll just return the data as is.
+    # This can be expanded to include filtering, aggregation, etc.
+    return spo2_data

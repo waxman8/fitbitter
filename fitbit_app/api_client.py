@@ -73,3 +73,30 @@ def fetch_sleep_logs(fitbit, start_datetime, end_datetime):
             current_app.logger.error(f"Fitbit sleep API request failed: {sleep_response.status_code} {sleep_response.text}")
         current_date += timedelta(days=1)
     return all_sleep_logs
+
+def fetch_spo2_intraday(fitbit, start_datetime, end_datetime):
+    """Fetches intraday SpO2 data for a given datetime range."""
+    start_date_str = start_datetime.strftime('%Y-%m-%d')
+    end_date_str = end_datetime.strftime('%Y-%m-%d')
+
+    # The SpO2 intraday API seems to work best when fetching single days.
+    # We will loop through the date range and aggregate the results.
+    all_spo2_data = []
+    current_date = start_datetime.date()
+    while current_date <= end_datetime.date():
+        date_str = current_date.strftime('%Y-%m-%d')
+        api_url = f"https://api.fitbit.com/1/user/-/spo2/date/{date_str}/all.json"
+        current_app.logger.info(f"Fetching SpO2 data from URL: {api_url}")
+        
+        response = fitbit.get(api_url)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('minutes'):
+                all_spo2_data.extend(data['minutes'])
+        else:
+            current_app.logger.error(f"Fitbit SpO2 API request for {date_str} failed with status code {response.status_code}: {response.text}")
+        
+        current_date += timedelta(days=1)
+        
+    return {"minutes": all_spo2_data}
